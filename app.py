@@ -402,6 +402,16 @@ def cargar_historial():
     # Formatear los datos para devolver como JSON
     trade_list = []
     for trade in trades:
+        # Calcular ganancia/pérdida
+        if trade['result'] == 'Ganadora':
+            profit_loss = (trade['take_profit'] - trade['entry_point']) * trade['lot_size'] if 'Boom' in trade['asset'] else (trade['entry_point'] - trade['take_profit']) * trade['lot_size']
+        elif trade['result'] == 'Perdedora':
+            profit_loss = (trade['entry_point'] - trade['stop_loss']) * trade['lot_size'] if 'Boom' in trade['asset'] else (trade['stop_loss'] - trade['entry_point']) * trade['lot_size']
+        else:
+            profit_loss = 0
+
+        profit_loss_display = f"{'+' if profit_loss > 0 else ''}{profit_loss} USD"
+
         # Generar la URL manualmente
         image_url = f"/static/uploads/{trade['entry_image_path']}" if trade["entry_image_path"] else None
         trade_list.append({
@@ -414,7 +424,8 @@ def cargar_historial():
             "result": trade["result"],
             "trade_date": trade["trade_date"],
             "emotion": trade["emotion"],
-            "activation_routine": "Sí" if trade["activation_routine"] == "yes" else "No",
+            "activation_routine": "Sí" if str(trade["activation_routine"]).lower() in ["sí", "si", "yes", "1"] else "No",
+            "profit_loss": profit_loss_display,
             "entry_image_url": image_url  # Aquí pasamos la URL manual sin usar url_for
         })
 

@@ -38,6 +38,7 @@
                     <th>Fecha de la Operación</th>
                     <th>Emoción al Operar</th>
                     <th>¿Realizaste la rutina de activación?</th>
+                    <th>Ganancia / Pérdida</th>
                     <th>Imagen de Entrada</th>
                 </tr>
             </thead>
@@ -103,6 +104,7 @@
                     <td>${trade.trade_date}</td>
                     <td>${trade.emotion}</td>
                     <td>${trade.activation_routine}</td>
+                    <td>${trade.profit_loss}</td>
                     <td>
                         ${imageUrl ? `<a href="${imageUrl}" class="view-image-button" target="_blank">Ver Imagen</a>` : 'N/A'}
                     </td>
