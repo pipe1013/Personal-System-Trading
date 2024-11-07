@@ -404,13 +404,14 @@ def cargar_historial():
     for trade in trades:
         # Calcular ganancia/pérdida
         if trade['result'] == 'Ganadora':
-            profit_loss = (trade['take_profit'] - trade['entry_point']) * trade['lot_size'] if 'Boom' in trade['asset'] else (trade['entry_point'] - trade['take_profit']) * trade['lot_size']
+            profit_loss = abs((trade['take_profit'] - trade['entry_point']) * trade['lot_size']) if 'Boom' in trade['asset'] else abs((trade['entry_point'] - trade['take_profit']) * trade['lot_size'])
         elif trade['result'] == 'Perdedora':
-            profit_loss = (trade['entry_point'] - trade['stop_loss']) * trade['lot_size'] if 'Boom' in trade['asset'] else (trade['stop_loss'] - trade['entry_point']) * trade['lot_size']
+            profit_loss = abs((trade['entry_point'] - trade['stop_loss']) * trade['lot_size']) if 'Boom' in trade['asset'] else abs((trade['stop_loss'] - trade['entry_point']) * trade['lot_size'])
         else:
             profit_loss = 0
 
-        profit_loss_display = f"{'+' if profit_loss > 0 else ''}{profit_loss} USD"
+        # Mostrar la ganancia/pérdida sin signos
+        profit_loss_display = f"{profit_loss} USD"
 
         # Generar la URL manualmente
         image_url = f"/static/uploads/{trade['entry_image_path']}" if trade["entry_image_path"] else None
