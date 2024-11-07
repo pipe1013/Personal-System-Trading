@@ -3,6 +3,7 @@
 {% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/styleHistory.css') }}">
 <link rel="stylesheet" href="https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
 {% endblock %}
 
 {% block content %}
@@ -18,7 +19,8 @@
                 <option value="{{ notebook.id }}">{{ notebook.name }} - {{ notebook.account_type }} - ${{ notebook.initial_balance }}</option>
             {% endfor %}
         </select>
-        <button class="btn btn-primary ml-3" onclick="loadTradeHistory()">Filtrar</button>
+        <button id="filterButton" class="btn-filtrar" onclick="loadTradeHistory()">Filtrar</button>
+        <button id="deleteNotebookButton" class="btn-eliminar-cuaderno ml-3" style="display:none;" onclick="confirmDeleteNotebook()">Eliminar Cuaderno</button>
     </div>
 
     <!-- Contenedor para los registros de trades -->
@@ -48,6 +50,7 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
     let tradeTable;
@@ -55,6 +58,12 @@
     // Listener para cargar el historial de trades
     function loadTradeHistory() {
         const notebookId = document.getElementById('notebook_filter').value;
+
+        if (notebookId) {
+            document.getElementById('deleteNotebookButton').style.display = 'inline-block';
+        } else {
+            document.getElementById('deleteNotebookButton').style.display = 'none';
+        }
 
         fetch(`/cargar_historial?notebook_id=${notebookId}`)
             .then(response => response.json())
@@ -83,7 +92,7 @@
         data.trades.forEach(trade => {
             const imageUrl = trade.entry_image_url ? trade.entry_image_url : null;
             container.innerHTML += `
-                <tr>
+                <tr class="trade-row" data-result="${trade.result}">
                     <td>${trade.notebook_name}</td>
                     <td>${trade.asset}</td>
                     <td>${trade.lot_size}</td>
@@ -102,7 +111,55 @@
         });
 
         // Inicializar DataTable después de actualizar la tabla
-        tradeTable = $('#tradeHistoryTable').DataTable();
+        tradeTable = $('#tradeHistoryTable').DataTable({
+            "rowCallback": function(row, data) {
+                const result = $(row).attr('data-result');
+                if (result === 'Ganadora') {
+                    $(row).addClass('ganadora-row');
+                } else if (result === 'Perdedora') {
+                    $(row).addClass('perdedora-row');
+                }
+            }
+        });
+    }
+
+    // Función para confirmar la eliminación del cuaderno con SweetAlert2
+    function confirmDeleteNotebook() {
+        const notebookId = document.getElementById('notebook_filter').value;
+
+        Swal.fire({
+            title: '¿Estás seguro?',
+            text: "Esta acción eliminará el cuaderno y todos sus registros asociados.",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                fetch('/eliminar_cuaderno', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
+                    body: `notebook_id=${notebookId}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        Swal.fire('Error', data.error, 'error');
+                    } else {
+                        Swal.fire('Eliminado', data.success, 'success');
+                        loadTradeHistory();
+                    }
+                })
+                .catch(error => {
+                    console.error("Error al eliminar el cuaderno:", error);
+                    Swal.fire('Error', 'Hubo un error al eliminar el cuaderno. Por favor, inténtalo de nuevo.', 'error');
+                });
+            }
+        });
     }
 
     // Inicializar DataTable al cargar la página sin datos

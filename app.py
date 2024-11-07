@@ -161,12 +161,22 @@ def estadisticas():
     # Obtener información de los cuadernos para el selector
     cursor.execute("SELECT * FROM notebooks WHERE user_id = ?", (session['user_id'],))
     notebooks = cursor.fetchall()
+
+    # Obtener los meses disponibles con trades
+    cursor.execute("""
+        SELECT DISTINCT strftime('%Y-%m', trade_date) as month
+        FROM trades
+        WHERE user_id = ?
+        ORDER BY month DESC
+    """, (session['user_id'],))
+    months = [row['month'] for row in cursor.fetchall()]
+    
     connection.close()
 
-    return render_template('estadisticas.html', notebooks=notebooks, notebook_id=None)
+    return render_template('estadisticas.html', notebooks=notebooks, months=months, notebook_id=None)
 
-@app.route('/cargar_datos_estadisticas', methods=['GET'])
-def cargar_datos_estadisticas():
+@app.route('/obtener_meses', methods=['GET'])
+def obtener_meses():
     notebook_id = request.args.get('notebook_id')
 
     if not notebook_id:
@@ -175,18 +185,47 @@ def cargar_datos_estadisticas():
     connection = get_db_connection()
     cursor = connection.cursor()
 
+    # Obtener los meses disponibles con trades para el cuaderno seleccionado
+    cursor.execute("""
+        SELECT DISTINCT strftime('%Y-%m', trade_date) as month
+        FROM trades
+        WHERE user_id = ? AND notebook_id = ?
+        ORDER BY month DESC
+    """, (session['user_id'], notebook_id))
+    months = cursor.fetchall()
+    connection.close()
+
+    # Convertir los resultados en una lista de strings
+    months_list = [row["month"] for row in months]
+
+    return jsonify({"months": months_list})
+
+@app.route('/cargar_datos_estadisticas', methods=['GET'])
+def cargar_datos_estadisticas():
+    notebook_id = request.args.get('notebook_id')
+    mes = request.args.get('mes')
+
+    if not notebook_id or not mes:
+        return jsonify({"error": "No se proporcionó el ID del cuaderno o el mes"}), 400
+
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
     # Obtener capital inicial del cuaderno seleccionado
     cursor.execute("SELECT initial_balance FROM notebooks WHERE id = ? AND user_id = ?", (notebook_id, session['user_id']))
     notebook = cursor.fetchone()
-    initial_balance = notebook["initial_balance"] if notebook else 0
+    if not notebook:
+        return jsonify({"error": "No se encontró el cuaderno seleccionado"}), 404
+
+    initial_balance = notebook["initial_balance"]
 
     # Cálculo del capital en cuenta en base a cada trade, de forma acumulativa
     cursor.execute("""
-        SELECT trade_date, result, entry_point, stop_loss, take_profit, lot_size
+        SELECT trade_date, result, entry_point, stop_loss, take_profit, lot_size, asset
         FROM trades
-        WHERE notebook_id = ? AND user_id = ?
+        WHERE notebook_id = ? AND user_id = ? AND strftime('%Y-%m', trade_date) = ?
         ORDER BY trade_date
-    """, (notebook_id, session['user_id']))
+    """, (notebook_id, session['user_id'], mes))
     
     trades = cursor.fetchall()
     dates = []
@@ -194,14 +233,27 @@ def cargar_datos_estadisticas():
 
     current_balance = initial_balance
     for trade in trades:
-        # Ajustar las ganancias o pérdidas en función del tamaño del pip
+        asset = trade["asset"].lower()
         lot_size = trade["lot_size"]
-        if trade["result"] == "Ganadora":
-            gain = (trade["take_profit"] - trade["entry_point"]) * lot_size
-            current_balance += gain
-        elif trade["result"] == "Perdedora":
-            loss = (trade["entry_point"] - trade["stop_loss"]) * lot_size
-            current_balance -= loss
+        entry_point = trade["entry_point"]
+        take_profit = trade["take_profit"]
+        stop_loss = trade["stop_loss"]
+
+        # Ajustar las ganancias o pérdidas en función del tipo de índice y del tamaño del pip
+        if "boom" in asset:  # Boom - Solo Compras
+            if trade["result"] == "Ganadora":
+                gain = (take_profit - entry_point) * lot_size
+                current_balance += gain
+            elif trade["result"] == "Perdedora":
+                loss = (entry_point - stop_loss) * lot_size
+                current_balance -= loss
+        elif "crash" in asset:  # Crash - Solo Ventas
+            if trade["result"] == "Ganadora":
+                gain = (entry_point - take_profit) * lot_size
+                current_balance += gain
+            elif trade["result"] == "Perdedora":
+                loss = (stop_loss - entry_point) * lot_size
+                current_balance -= loss
 
         dates.append(trade["trade_date"])
         capital.append(current_balance)
@@ -215,9 +267,9 @@ def cargar_datos_estadisticas():
     cursor.execute("""
         SELECT result, COUNT(*) as count
         FROM trades
-        WHERE user_id = ? AND notebook_id = ?
+        WHERE user_id = ? AND notebook_id = ? AND strftime('%Y-%m', trade_date) = ?
         GROUP BY result
-    """, (session['user_id'], notebook_id))
+    """, (session['user_id'], notebook_id, mes))
     result_counts = cursor.fetchall()
     results_distribution = {
         "wins": sum(row["count"] for row in result_counts if row["result"] == "Ganadora"),
@@ -226,11 +278,15 @@ def cargar_datos_estadisticas():
 
     cursor.execute("""
         SELECT 
-            AVG(CASE WHEN result = 'Ganadora' THEN (take_profit - entry_point) * lot_size ELSE NULL END) AS avg_gain,
-            AVG(CASE WHEN result = 'Perdedora' THEN (entry_point - stop_loss) * lot_size ELSE NULL END) AS avg_loss
+            AVG(CASE WHEN result = 'Ganadora' AND asset LIKE 'boom%' THEN (take_profit - entry_point) * lot_size
+                     WHEN result = 'Ganadora' AND asset LIKE 'crash%' THEN (entry_point - take_profit) * lot_size
+                     ELSE NULL END) AS avg_gain,
+            AVG(CASE WHEN result = 'Perdedora' AND asset LIKE 'boom%' THEN (entry_point - stop_loss) * lot_size
+                     WHEN result = 'Perdedora' AND asset LIKE 'crash%' THEN (stop_loss - entry_point) * lot_size
+                     ELSE NULL END) AS avg_loss
         FROM trades
-        WHERE user_id = ? AND notebook_id = ?
-    """, (session['user_id'], notebook_id))
+        WHERE user_id = ? AND notebook_id = ? AND strftime('%Y-%m', trade_date) = ?
+    """, (session['user_id'], notebook_id, mes))
     avg_data = cursor.fetchone()
     average_win_loss = {
         "avg_win": avg_data["avg_gain"] if avg_data["avg_gain"] is not None else 0,
@@ -238,11 +294,16 @@ def cargar_datos_estadisticas():
     }
 
     cursor.execute("""
-        SELECT strftime('%W', trade_date) AS week, SUM((CASE WHEN result = 'Ganadora' THEN (take_profit - entry_point) ELSE (entry_point - stop_loss) * -1 END) * lot_size) AS profit
+        SELECT strftime('%W', trade_date) AS week, SUM((CASE 
+            WHEN result = 'Ganadora' AND asset LIKE 'boom%' THEN (take_profit - entry_point)
+            WHEN result = 'Ganadora' AND asset LIKE 'crash%' THEN (entry_point - take_profit)
+            WHEN result = 'Perdedora' AND asset LIKE 'boom%' THEN (entry_point - stop_loss) * -1
+            WHEN result = 'Perdedora' AND asset LIKE 'crash%' THEN (stop_loss - entry_point) * -1
+            END) * lot_size) AS profit
         FROM trades
-        WHERE user_id = ? AND notebook_id = ? AND trade_date >= date('now', '-4 weeks')
+        WHERE user_id = ? AND notebook_id = ? AND strftime('%Y-%m', trade_date) = ?
         GROUP BY week
-    """, (session['user_id'], notebook_id))
+    """, (session['user_id'], notebook_id, mes))
     weekly_performance_data = cursor.fetchall()
     weekly_performance = {
         "weeks": [row["week"] for row in weekly_performance_data],
@@ -254,9 +315,9 @@ def cargar_datos_estadisticas():
                COUNT(*) AS total, 
                ROUND(SUM(CASE WHEN result = 'Ganadora' THEN 1 ELSE 0 END) * 1.0 / COUNT(*), 2) AS success_rate
         FROM trades
-        WHERE user_id = ? AND notebook_id = ?
+        WHERE user_id = ? AND notebook_id = ? AND strftime('%Y-%m', trade_date) = ?
         GROUP BY emotion
-    """, (session['user_id'], notebook_id))
+    """, (session['user_id'], notebook_id, mes))
     emotion_data = cursor.fetchall()
     emotion_performance = {
         "emotions": [row["emotion"] for row in emotion_data],
@@ -267,10 +328,10 @@ def cargar_datos_estadisticas():
     cursor.execute("""
         SELECT asset, COUNT(*) as total
         FROM trades
-        WHERE user_id = ? AND notebook_id = ?
+        WHERE user_id = ? AND notebook_id = ? AND strftime('%Y-%m', trade_date) = ?
         GROUP BY asset
         ORDER BY total DESC
-    """, (session['user_id'], notebook_id))
+    """, (session['user_id'], notebook_id, mes))
     asset_data = cursor.fetchall()
     asset_distribution = {
         "assets": [row["asset"] for row in asset_data],
@@ -280,14 +341,18 @@ def cargar_datos_estadisticas():
     connection.close()
 
     # Devolver datos como JSON
-    return jsonify({
+    data = {
         "performance_data": performance_data,
         "results_distribution": results_distribution,
         "average_win_loss": average_win_loss,
         "weekly_performance": weekly_performance,
         "emotion_performance": emotion_performance,
-        "asset_distribution": asset_distribution,  # Añadimos los datos del nuevo gráfico
-    })
+        "asset_distribution": asset_distribution,
+    }
+
+    print("Datos enviados al frontend:", data)
+    
+    return jsonify(data)
 
 @app.route('/historial')
 def historial():
@@ -302,8 +367,6 @@ def historial():
     return render_template('historial.html', notebooks=notebooks)
 
 from flask import send_from_directory
-
-
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -358,6 +421,25 @@ def cargar_historial():
     connection.close()
 
     return jsonify({"trades": trade_list})
+
+@app.route('/eliminar_cuaderno', methods=['POST'])
+def eliminar_cuaderno():
+    notebook_id = request.form.get('notebook_id')
+
+    if not notebook_id:
+        return jsonify({"error": "No se proporcionó un cuaderno para eliminar."}), 400
+
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    # Eliminar todos los registros relacionados con el cuaderno
+    cursor.execute("DELETE FROM trades WHERE notebook_id = ?", (notebook_id,))
+    cursor.execute("DELETE FROM notebooks WHERE id = ?", (notebook_id,))
+
+    connection.commit()
+    connection.close()
+
+    return jsonify({"success": "Cuaderno eliminado correctamente."})
 
 if __name__ == '__main__':
     app.run(debug=True)

@@ -5,7 +5,7 @@
 {% endblock %}
 
 {% block content %}
-<!-- Contenedor del selector y el botón -->
+<!-- Contenedor del selector y los botones -->
 <div class="selector-container" id="selectorContainer">
     <label for="notebook" style="margin-right: 10px;">Selecciona Cuaderno:</label>
     <select id="notebook">
@@ -16,38 +16,109 @@
             </option>
         {% endfor %}
     </select>
+
+    <label for="mes" style="margin-left: 20px;">Selecciona Mes:</label>
+    <select id="mes">
+        <option value="">Selecciona un mes</option>
+    </select>
+
     <button id="loadChartsButton" class="button-primary">Ver Gráficos</button>
 </div>
 
 <!-- Contenedor para los gráficos -->
 <div class="stats-container" id="chartsContainer" style="display: none;">
-    <!-- Los gráficos se mostrarán aquí tras la selección de un cuaderno y la pulsación del botón -->
+    <!-- Los gráficos se mostrarán aquí tras la selección de un cuaderno y un mes -->
+    <div class="chart">
+        <h2>Rendimiento del Capital Acumulado</h2>
+        <canvas id="performanceChart"></canvas>
+    </div>
+    <div class="chart">
+        <h2>Distribución de Resultados</h2>
+        <canvas id="resultsDistributionChart"></canvas>
+    </div>
+    <div class="chart">
+        <h2>Promedio de Ganancias y Pérdidas (en USD)</h2>
+        <canvas id="averageWinLossChart"></canvas>
+    </div>
+    <div class="chart">
+        <h2>Rendimiento Semanal (Últimas 4 Semanas)</h2>
+        <canvas id="weeklyPerformanceChart"></canvas>
+    </div>
+    <div class="chart">
+        <h2>Tasa de Éxito por Emoción</h2>
+        <canvas id="emotionPerformanceChart"></canvas>
+    </div>
+    <div class="chart">
+        <h2>Activo Más Operado</h2>
+        <canvas id="mostTradedAssetChart"></canvas>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    // Listener para el selector de cuadernos
+    document.getElementById('notebook').addEventListener('change', function() {
+        const notebookId = this.value;
+
+        if (notebookId) {
+            loadMonths(notebookId);
+        } else {
+            // Limpiar los meses si no hay un cuaderno seleccionado
+            const mesSelect = document.getElementById('mes');
+            mesSelect.innerHTML = '<option value="">Selecciona un mes</option>';
+        }
+    });
+
+    // Función para cargar los meses de un cuaderno específico vía AJAX
+    function loadMonths(notebookId) {
+        fetch(`/obtener_meses?notebook_id=${notebookId}`)
+            .then(response => response.json())
+            .then(data => {
+                const mesSelect = document.getElementById('mes');
+                mesSelect.innerHTML = '<option value="">Selecciona un mes</option>';
+
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    data.months.forEach(month => {
+                        const option = document.createElement('option');
+                        option.value = month;
+                        option.textContent = month;
+                        mesSelect.appendChild(option);
+                    });
+                }
+            })
+            .catch(error => {
+                console.error("Error al cargar los meses:", error);
+                alert("Hubo un error al cargar los meses. Por favor, inténtalo de nuevo.");
+            });
+    }
+
     // Listener para el botón de cargar gráficos
     document.getElementById('loadChartsButton').addEventListener('click', function() {
         const notebookId = document.getElementById('notebook').value;
-        if (notebookId) {
-            // Ocultar el selector y el botón
-            document.getElementById('selectorContainer').style.display = 'none';
+        const mes = document.getElementById('mes').value;
+
+        if (notebookId && mes) {
             // Mostrar el contenedor de gráficos y cargar los gráficos
             document.getElementById('chartsContainer').style.display = 'grid';
-            loadCharts(notebookId);
+            // Ocultar el selector de cuadernos y el botón
+            document.getElementById('selectorContainer').style.display = 'none';
+            loadCharts(notebookId, mes);
         } else {
-            alert("Por favor, selecciona un cuaderno antes de cargar los gráficos.");
+            alert("Por favor, selecciona un cuaderno y un mes antes de cargar los gráficos.");
         }
     });
 
     // Función para cargar los gráficos vía AJAX
-    function loadCharts(notebookId) {
-        fetch(`/cargar_datos_estadisticas?notebook_id=${notebookId}`)
+    function loadCharts(notebookId, mes) {
+        fetch(`/cargar_datos_estadisticas?notebook_id=${notebookId}&mes=${mes}`)
             .then(response => response.json())
             .then(data => {
                 if (data.error) {
                     alert(data.error);
                 } else {
+                    console.log("Datos recibidos del servidor:", data);
                     displayCharts(data);
                 }
             })
@@ -57,41 +128,29 @@
             });
     }
 
+
     // Función para mostrar los gráficos en el contenedor
     function displayCharts(data) {
         const chartsContainer = document.getElementById('chartsContainer');
-        chartsContainer.innerHTML = `
-            <div class="chart">
-                <h2>Rendimiento del Capital Acumulado</h2>
-                <canvas id="performanceChart"></canvas>
-            </div>
-            <div class="chart">
-                <h2>Distribución de Resultados</h2>
-                <canvas id="resultsDistributionChart"></canvas>
-            </div>
-            <div class="chart">
-                <h2>Promedio de Ganancias y Pérdidas (en USD)</h2>
-                <canvas id="averageWinLossChart"></canvas>
-            </div>
-            <div class="chart">
-                <h2>Rendimiento Semanal (Últimas 4 Semanas)</h2>
-                <canvas id="weeklyPerformanceChart"></canvas>
-            </div>
-            <div class="chart">
-                <h2>Tasa de Éxito por Emoción</h2>
-                <canvas id="emotionPerformanceChart"></canvas>
-            </div>
-            <div class="chart">
-                <h2>Activo Más Operado</h2>
-                <canvas id="mostTradedAssetChart"></canvas>
-            </div>
-        `;
-        createPerformanceChart(data.performance_data);
-        createResultsDistributionChart(data.results_distribution);
-        createAverageWinLossChart(data.average_win_loss);
-        createWeeklyPerformanceChart(data.weekly_performance);
-        createEmotionPerformanceChart(data.emotion_performance);
-        createMostTradedAssetChart(data.asset_distribution);
+
+        if (data.performance_data.dates.length > 0) {
+            createPerformanceChart(data.performance_data);
+        }
+        if (data.results_distribution.wins > 0 || data.results_distribution.losses > 0) {
+            createResultsDistributionChart(data.results_distribution);
+        }
+        if (data.average_win_loss.avg_win !== 0 || data.average_win_loss.avg_loss !== 0) {
+            createAverageWinLossChart(data.average_win_loss);
+        }
+        if (data.weekly_performance.weeks.length > 0) {
+            createWeeklyPerformanceChart(data.weekly_performance);
+        }
+        if (data.emotion_performance.emotions.length > 0) {
+            createEmotionPerformanceChart(data.emotion_performance);
+        }
+        if (data.asset_distribution.assets.length > 0) {
+            createMostTradedAssetChart(data.asset_distribution);
+        }
     }
 
     // Funciones para crear los gráficos con Chart.js
@@ -145,7 +204,9 @@
     }
 
     function createResultsDistributionChart(resultsData) {
-        new Chart(document.getElementById('resultsDistributionChart').getContext('2d'), {
+        const ctx = document.getElementById('resultsDistributionChart').getContext('2d');
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        new Chart(ctx, {
             type: 'doughnut',
             data: {
                 labels: ['Ganadora', 'Perdedora'],
@@ -158,7 +219,9 @@
     }
 
     function createAverageWinLossChart(avgWinLossData) {
-        new Chart(document.getElementById('averageWinLossChart').getContext('2d'), {
+        const ctx = document.getElementById('averageWinLossChart').getContext('2d');
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: ['Ganancia Promedio', 'Pérdida Promedio'],
@@ -183,7 +246,9 @@
     }
 
     function createWeeklyPerformanceChart(weeklyPerformanceData) {
-        new Chart(document.getElementById('weeklyPerformanceChart').getContext('2d'), {
+        const ctx = document.getElementById('weeklyPerformanceChart').getContext('2d');
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: weeklyPerformanceData.weeks,
@@ -197,7 +262,9 @@
     }
 
     function createEmotionPerformanceChart(emotionPerformanceData) {
-        new Chart(document.getElementById('emotionPerformanceChart').getContext('2d'), {
+        const ctx = document.getElementById('emotionPerformanceChart').getContext('2d');
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        new Chart(ctx, {
             type: 'bar',
             data: {
                 labels: emotionPerformanceData.emotions,
@@ -224,7 +291,9 @@
     }
 
     function createMostTradedAssetChart(assetData) {
-        new Chart(document.getElementById('mostTradedAssetChart').getContext('2d'), {
+        const ctx = document.getElementById('mostTradedAssetChart').getContext('2d');
+        ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+        new Chart(ctx, {
             type: 'pie',
             data: {
                 labels: assetData.assets,

@@ -39,6 +39,42 @@
     background-color: #0056b3;
 }
 
+/* Estilo del botón Filtrar */
+#filterButton {
+    margin-left: 10px;
+    padding: 10px 15px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-size: 16px;
+    text-decoration: none;
+}
+
+#filterButton:hover {
+    background-color: #218838;
+}
+
+/* Estilo del botón Eliminar Cuaderno */
+#deleteNotebookButton {
+    margin-left: 10px;
+    padding: 10px 15px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    font-size: 16px;
+    text-decoration: none;
+}
+
+#deleteNotebookButton:hover {
+    background-color: #c82333;
+}
+
 /* Estilos de la tabla */
 #tradeHistoryTable {
     width: 100%;
@@ -64,6 +100,17 @@
 
 #tradeHistoryTable tr:hover {
     background-color: #f1f1f1;
+}
+
+/* Estilos de las filas ganadoras y perdedoras */
+.ganadora-row {
+    background-color: #d4edda !important; /* Verde claro para las filas ganadoras */
+    color: #155724 !important; /* Texto verde oscuro para mejor contraste */
+}
+
+.perdedora-row {
+    background-color: #f8d7da !important; /* Rojo claro para las filas perdedoras */
+    color: #721c24 !important; /* Texto rojo oscuro para mejor contraste */
 }
 
 /* Estilo de la paginación de DataTables */

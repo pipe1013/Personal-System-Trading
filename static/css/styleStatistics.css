@@ -8,7 +8,8 @@
 }
 
 /* Estilo para el selector de cuadernos */
-#notebook {
+#notebook,
+#mes {
     width: 70%;
     padding: 10px;
     margin: 20px 0;
@@ -16,6 +17,12 @@
     border-radius: 5px;
     border: 1px solid #ccc;
     box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Estilo específico para el selector de mes */
+#mes {
+    width: 50%;
+    margin-left: 20px;
 }
 
 /* Estilo para el botón de cargar gráficos */
@@ -69,7 +76,8 @@
         max-width: 100%;
     }
 
-    #notebook {
+    #notebook,
+    #mes {
         width: 100%;
     }
 }
@@ -89,6 +97,11 @@
     }
 
     #loadChartsButton {
+        margin-top: 10px;
+        margin-left: 0;
+    }
+
+    #mes {
         margin-top: 10px;
         margin-left: 0;
     }
