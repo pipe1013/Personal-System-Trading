@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trading Control System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styleNav.css') }}">
+    {% block styles %}{% endblock %}  <!-- Bloque para estilos adicionales -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Trading Menu</h2>
+        <a href="{{ url_for('home') }}">Inicio</a>
+        <a href="{{ url_for('register_trade') }}">Registrar Trade</a>
+        <a href="{{ url_for('estadisticas') }}">Estadísticas</a>
+        <a href="{{ url_for('historial') }}">Historial</a>
+        <a href="{{ url_for('home') }}">Scripts</a>
+        <a href="{{ url_for('logout') }}">Logout</a>
+    </div>
+    <div class="content">
+        {% block content %}{% endblock %}
+
+        {% if welcome_message %}
+            <script>
+                Swal.fire({
+                    icon: 'success',
+                    title: '{{ welcome_message }}',
+                    text: '¡Bienvenido al sistema de trading!'
+                });
+            </script>
+        {% endif %}
+
+        <!-- Mostrar el video solo en la página de inicio -->
+        {% if show_video %}
+            <video id="bitcoinVideo" class="fullscreen-video" controls loop muted>
+                <source src="{{ url_for('static', filename='img/Trading.mp4') }}" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styleTrade.css') }}">
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+<style>
+    /* Centrado del modal */
+    .modal-dialog {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        margin: auto;
+    }
+
+    /* Centrado del contenido de la página */
+    .content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 80px);
+        padding: 20px;
+        background-color: #f7f9fc;
+    }
+</style>
+{% endblock %}
+{% block content %}
+<div class="content">
+    <h1>Registrar Trade</h1>
+
+    <!-- Botón para abrir el modal de creación de cuaderno -->
+    <button class="btn btn-primary mb-3" onclick="openNotebookModal()">Crear Cuaderno</button>
+
+    <!-- Modal para crear un cuaderno -->
+    <div id="notebookModal" class="modal fade" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Crear Cuaderno</h5>
+                    <button type="button" class="close" onclick="closeNotebookModal()" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="notebookForm">
+                        <div class="form-group">
+                            <label for="name">Nombre del Cuaderno:</label>
+                            <input type="text" class="form-control" id="name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="initial_balance">Monto Inicial:</label>
+                            <input type="number" class="form-control" id="initial_balance" name="initial_balance" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="account_type">Tipo de Cuenta:</label>
+                            <select class="form-control" id="account_type" name="account_type" required>
+                                <option value="Demo">Demo</option>
+                                <option value="Real">Real</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-success w-100 mt-3" onclick="createNotebook()">Crear</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario para registrar un trade -->
+    <form action="{{ url_for('register_trade') }}" method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="notebook_id">Selecciona Cuaderno:</label>
+            <select id="notebook_id" name="notebook_id" class="form-control" required>
+                <option value="">Selecciona un cuaderno</option>
+                {% for notebook in notebooks %}
+                    <option value="{{ notebook.id }}">{{ notebook.name }} - {{ notebook.account_type }} - ${{ notebook.initial_balance }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group col-md-6">
+                <label for="asset">Activo Operado:</label>
+                <select id="asset" name="asset" class="form-control" required>
+                    <option value="BOOM300">BOOM300</option>
+                    <option value="BOOM500">BOOM500</option>
+                    <option value="BOOM1000">BOOM1000</option>
+                    <option value="CRASH300">CRASH300</option>
+                    <option value="CRASH500">CRASH500</option>
+                    <option value="CRASH1000">CRASH1000</option>
+                </select>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="lot_size">Lotaje Operado:</label>
+                <input type="number" id="lot_size" name="lot_size" step="0.1" class="form-control" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group col-md-6">
+                <label for="entry_point">Punto de Entrada:</label>
+                <input type="number" class="form-control" id="entry_point" name="entry_point" step="0.01" required>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="stop_loss">Stop Loss:</label>
+                <input type="number" class="form-control" id="stop_loss" name="stop_loss" step="0.01">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="take_profit">Take Profit:</label>
+            <input type="number" class="form-control" id="take_profit" name="take_profit" step="0.01">
+        </div>
+
+        <div class="form-row">
+            <div class="form-group col-md-6">
+                <label for="result">Resultado de la Operación:</label>
+                <select id="result" name="result" class="form-control" required>
+                    <option value="Ganadora">Ganadora</option>
+                    <option value="Perdedora">Perdedora</option>
+                </select>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="trade_date">Fecha de la Operación:</label>
+                <input type="date" class="form-control" id="trade_date" name="trade_date" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group col-md-6">
+                <label for="emotion">Emoción al Operar:</label>
+                <select id="emotion" name="emotion" class="form-control" required>
+                    <option value="Confianza">Confianza</option>
+                    <option value="Ansiedad">Ansiedad</option>
+                    <option value="Optimismo">Optimismo</option>
+                    <option value="Miedo">Miedo</option>
+                    <option value="Euforia">Euforia</option>
+                    <option value="Irritación">Irritación</option>
+                    <option value="Calma">Calma</option>
+                </select>
+            </div>
+            <div class="form-group col-md-6">
+                <label for="activation_routine">¿Realizaste tu rutina de activación?</label>
+                <select id="activation_routine" name="activation_routine" class="form-control" required>
+                    <option value="yes">Sí</option>
+                    <option value="no">No</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="entry_image">Imagen de Entrada:</label>
+            <input type="file" class="form-control-file" id="entry_image" name="entry_image">
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100 mt-3">Registrar Trade</button>
+    </form>
+</div>
+
+<!-- JavaScript para abrir y cerrar el modal y para el manejo del formulario -->
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.4.4/dist/umd/popper.min.js"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+<script>
+    function openNotebookModal() {
+        $('#notebookModal').modal('show');
+    }
+
+    function closeNotebookModal() {
+        $('#notebookModal').modal('hide');
+    }
+
+    // Crear cuaderno vía AJAX
+    function createNotebook() {
+        const formData = new FormData(document.getElementById('notebookForm'));
+
+        fetch("{{ url_for('create_notebook') }}", {
+            method: "POST",
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                // Añadir el nuevo cuaderno al selector sin recargar la página
+                const notebookSelect = document.getElementById('notebook_id');
+                const option = document.createElement('option');
+                option.value = data.id;
+                option.textContent = `${data.name} - ${data.account_type} - $${data.initial_balance}`;
+                notebookSelect.appendChild(option);
+                notebookSelect.value = data.id;  // Selecciona el nuevo cuaderno
+                closeNotebookModal();
+                alert("Cuaderno creado exitosamente");
+            }
+        });
+    }
+</script>
+
+{% endblock %}

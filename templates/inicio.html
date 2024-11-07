@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Inicio</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styleNav.css') }}">
+</head>
+<body>
+    <div class="content">
+        <h1>Bienvenido al Sistema de Trading</h1>
+        <canvas id="tradingChart" width="400" height="200"></canvas>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Configuración inicial del gráfico
+        const ctx = document.getElementById('tradingChart').getContext('2d');
+        const tradingChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // Las etiquetas se actualizarán dinámicamente
+                datasets: [{
+                    label: 'Precio',
+                    borderColor: '#1abc9c',
+                    backgroundColor: 'rgba(26, 188, 156, 0.2)',
+                    data: [] // Los datos se actualizarán dinámicamente
+                }]
+            },
+            options: {
+                responsive: true,
+                animation: {
+                    duration: 0 // Desactiva la animación para que parezca en tiempo real
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Tiempo'
+                        }
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Precio'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Función para simular datos de precios en movimiento
+        function addData() {
+            const time = new Date().toLocaleTimeString(); // Hora actual
+            const price = (Math.random() * (100 - 80) + 80).toFixed(2); // Genera un precio aleatorio entre 80 y 100
+
+            // Añadir el tiempo y el precio al gráfico
+            tradingChart.data.labels.push(time);
+            tradingChart.data.datasets[0].data.push(price);
+
+            // Limita el número de puntos en el gráfico (por ejemplo, 20 puntos)
+            if (tradingChart.data.labels.length > 20) {
+                tradingChart.data.labels.shift();
+                tradingChart.data.datasets[0].data.shift();
+            }
+
+            // Actualiza el gráfico
+            tradingChart.update();
+        }
+
+        // Llama a addData cada segundo para simular movimiento en el gráfico
+        setInterval(addData, 1000);
+    </script>
+</body>
+</html>

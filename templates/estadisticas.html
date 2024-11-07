@@ -1,0 +1,247 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styleStatistics.css') }}">
+{% endblock %}
+
+{% block content %}
+<!-- Contenedor del selector y el botón -->
+<div class="selector-container" id="selectorContainer">
+    <label for="notebook" style="margin-right: 10px;">Selecciona Cuaderno:</label>
+    <select id="notebook">
+        <option value="">Selecciona un cuaderno</option>
+        {% for notebook in notebooks %}
+            <option value="{{ notebook.id }}" {% if notebook.id == notebook_id %}selected{% endif %}>
+                {{ notebook.name }} - {{ notebook.account_type }} - ${{ notebook.initial_balance }}
+            </option>
+        {% endfor %}
+    </select>
+    <button id="loadChartsButton" class="button-primary">Ver Gráficos</button>
+</div>
+
+<!-- Contenedor para los gráficos -->
+<div class="stats-container" id="chartsContainer" style="display: none;">
+    <!-- Los gráficos se mostrarán aquí tras la selección de un cuaderno y la pulsación del botón -->
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Listener para el botón de cargar gráficos
+    document.getElementById('loadChartsButton').addEventListener('click', function() {
+        const notebookId = document.getElementById('notebook').value;
+        if (notebookId) {
+            // Ocultar el selector y el botón
+            document.getElementById('selectorContainer').style.display = 'none';
+            // Mostrar el contenedor de gráficos y cargar los gráficos
+            document.getElementById('chartsContainer').style.display = 'grid';
+            loadCharts(notebookId);
+        } else {
+            alert("Por favor, selecciona un cuaderno antes de cargar los gráficos.");
+        }
+    });
+
+    // Función para cargar los gráficos vía AJAX
+    function loadCharts(notebookId) {
+        fetch(`/cargar_datos_estadisticas?notebook_id=${notebookId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    displayCharts(data);
+                }
+            })
+            .catch(error => {
+                console.error("Error al cargar los gráficos:", error);
+                alert("Hubo un error al cargar los gráficos. Por favor, inténtalo de nuevo.");
+            });
+    }
+
+    // Función para mostrar los gráficos en el contenedor
+    function displayCharts(data) {
+        const chartsContainer = document.getElementById('chartsContainer');
+        chartsContainer.innerHTML = `
+            <div class="chart">
+                <h2>Rendimiento del Capital Acumulado</h2>
+                <canvas id="performanceChart"></canvas>
+            </div>
+            <div class="chart">
+                <h2>Distribución de Resultados</h2>
+                <canvas id="resultsDistributionChart"></canvas>
+            </div>
+            <div class="chart">
+                <h2>Promedio de Ganancias y Pérdidas (en USD)</h2>
+                <canvas id="averageWinLossChart"></canvas>
+            </div>
+            <div class="chart">
+                <h2>Rendimiento Semanal (Últimas 4 Semanas)</h2>
+                <canvas id="weeklyPerformanceChart"></canvas>
+            </div>
+            <div class="chart">
+                <h2>Tasa de Éxito por Emoción</h2>
+                <canvas id="emotionPerformanceChart"></canvas>
+            </div>
+            <div class="chart">
+                <h2>Activo Más Operado</h2>
+                <canvas id="mostTradedAssetChart"></canvas>
+            </div>
+        `;
+        createPerformanceChart(data.performance_data);
+        createResultsDistributionChart(data.results_distribution);
+        createAverageWinLossChart(data.average_win_loss);
+        createWeeklyPerformanceChart(data.weekly_performance);
+        createEmotionPerformanceChart(data.emotion_performance);
+        createMostTradedAssetChart(data.asset_distribution);
+    }
+
+    // Funciones para crear los gráficos con Chart.js
+    function createPerformanceChart(performanceData) {
+        const container = document.getElementById('performanceChart').parentElement;
+        container.innerHTML = '<canvas id="performanceChart"></canvas>';
+
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: performanceData.dates,
+                datasets: [{
+                    label: 'Capital en Cuenta',
+                    data: performanceData.capital,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    fill: true,
+                    pointRadius: 4,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        title: {
+                            display: true,
+                            text: 'Capital en USD'
+                        },
+                        suggestedMin: Math.min(...performanceData.capital) - 100,
+                        suggestedMax: Math.max(...performanceData.capital) + 100
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Fecha'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                    }
+                }
+            }
+        });
+    }
+
+    function createResultsDistributionChart(resultsData) {
+        new Chart(document.getElementById('resultsDistributionChart').getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Ganadora', 'Perdedora'],
+                datasets: [{
+                    data: [resultsData.wins, resultsData.losses],
+                    backgroundColor: ['#4CAF50', '#FF5733']
+                }]
+            }
+        });
+    }
+
+    function createAverageWinLossChart(avgWinLossData) {
+        new Chart(document.getElementById('averageWinLossChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: ['Ganancia Promedio', 'Pérdida Promedio'],
+                datasets: [{
+                    label: 'Monto en USD',
+                    data: [avgWinLossData.avg_win, avgWinLossData.avg_loss],
+                    backgroundColor: ['rgba(75, 192, 192, 0.7)', 'rgba(255, 99, 132, 0.7)']
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Monto en USD'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function createWeeklyPerformanceChart(weeklyPerformanceData) {
+        new Chart(document.getElementById('weeklyPerformanceChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: weeklyPerformanceData.weeks,
+                datasets: [{
+                    label: 'Ganancia/Pérdida por Semana',
+                    data: weeklyPerformanceData.profits,
+                    backgroundColor: 'rgba(54, 162, 235, 0.7)'
+                }]
+            }
+        });
+    }
+
+    function createEmotionPerformanceChart(emotionPerformanceData) {
+        new Chart(document.getElementById('emotionPerformanceChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: emotionPerformanceData.emotions,
+                datasets: [{
+                    label: 'Tasa de Éxito',
+                    data: emotionPerformanceData.success_rates,
+                    backgroundColor: 'rgba(255, 206, 86, 0.7)'
+                }]
+            },
+            options: {
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 1,
+                        ticks: {
+                            callback: function(value) {
+                                return (value * 100) + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function createMostTradedAssetChart(assetData) {
+        new Chart(document.getElementById('mostTradedAssetChart').getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: assetData.assets,
+                datasets: [{
+                    label: 'Activo Más Operado',
+                    data: assetData.counts,
+                    backgroundColor: [
+                        '#4CAF50',
+                        '#FF5733',
+                        '#36A2EB',
+                        '#FFCE56',
+                        '#2ecc71',
+                        '#9b59b6'
+                    ]
+                }]
+            }
+        });
+    }
+</script>
+{% endblock %}

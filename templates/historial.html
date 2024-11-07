@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styleHistory.css') }}">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.11.3/css/jquery.dataTables.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="history-container">
+    <h1>Historial de Trades</h1>
+
+    <!-- Selector de cuadernos para filtrar el historial -->
+    <div class="history-header">
+        <label for="notebook_filter">Filtrar por Cuaderno:</label>
+        <select id="notebook_filter" name="notebook_filter">
+            <option value="">Todos los cuadernos</option>
+            {% for notebook in notebooks %}
+                <option value="{{ notebook.id }}">{{ notebook.name }} - {{ notebook.account_type }} - ${{ notebook.initial_balance }}</option>
+            {% endfor %}
+        </select>
+        <button class="btn btn-primary ml-3" onclick="loadTradeHistory()">Filtrar</button>
+    </div>
+
+    <!-- Contenedor para los registros de trades -->
+    <div class="trade-table-container">
+        <table id="tradeHistoryTable" class="display">
+            <thead>
+                <tr>
+                    <th>Cuaderno</th>
+                    <th>Activo Operado</th>
+                    <th>Lotaje Operado</th>
+                    <th>Punto de Entrada</th>
+                    <th>Stop Loss</th>
+                    <th>Take Profit</th>
+                    <th>Resultado de la Operación</th>
+                    <th>Fecha de la Operación</th>
+                    <th>Emoción al Operar</th>
+                    <th>¿Realizaste la rutina de activación?</th>
+                    <th>Imagen de Entrada</th>
+                </tr>
+            </thead>
+            <tbody id="tradeHistoryContainer">
+                <!-- Aquí se mostrará el historial filtrado -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.11.3/js/jquery.dataTables.min.js"></script>
+
+<script>
+    let tradeTable;
+
+    // Listener para cargar el historial de trades
+    function loadTradeHistory() {
+        const notebookId = document.getElementById('notebook_filter').value;
+
+        fetch(`/cargar_historial?notebook_id=${notebookId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    displayTradeHistory(data);
+                }
+            })
+            .catch(error => {
+                console.error("Error al cargar el historial:", error);
+                alert("Hubo un error al cargar el historial. Por favor, inténtalo de nuevo.");
+            });
+    }
+
+    // Función para mostrar el historial de trades
+    function displayTradeHistory(data) {
+        if (tradeTable) {
+            tradeTable.destroy(); // Destruir la tabla si ya fue inicializada
+        }
+
+        const container = document.getElementById('tradeHistoryContainer');
+        container.innerHTML = '';
+
+        data.trades.forEach(trade => {
+            const imageUrl = trade.entry_image_url ? trade.entry_image_url : null;
+            container.innerHTML += `
+                <tr>
+                    <td>${trade.notebook_name}</td>
+                    <td>${trade.asset}</td>
+                    <td>${trade.lot_size}</td>
+                    <td>${trade.entry_point}</td>
+                    <td>${trade.stop_loss}</td>
+                    <td>${trade.take_profit}</td>
+                    <td>${trade.result}</td>
+                    <td>${trade.trade_date}</td>
+                    <td>${trade.emotion}</td>
+                    <td>${trade.activation_routine}</td>
+                    <td>
+                        ${imageUrl ? `<a href="${imageUrl}" class="view-image-button" target="_blank">Ver Imagen</a>` : 'N/A'}
+                    </td>
+                </tr>
+            `;
+        });
+
+        // Inicializar DataTable después de actualizar la tabla
+        tradeTable = $('#tradeHistoryTable').DataTable();
+    }
+
+    // Inicializar DataTable al cargar la página sin datos
+    $(document).ready(function() {
+        tradeTable = $('#tradeHistoryTable').DataTable();
+    });
+</script>
+{% endblock %}
