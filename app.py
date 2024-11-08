@@ -3,6 +3,7 @@ import sqlite3
 from flask import Flask, render_template, redirect, url_for, request, session, flash, jsonify
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
+import websocket
 from config import DB_PATH
 
 app = Flask(__name__)
@@ -453,5 +454,237 @@ def eliminar_cuaderno():
 
     return jsonify({"success": "Cuaderno eliminado correctamente."})
 
+import json
+import websocket
+import pandas as pd
+import matplotlib.pyplot as plt
+import mplfinance as mpf
+from flask import Flask, render_template, request, jsonify, send_file, session
+from scipy.signal import find_peaks
+import threading
+import os
+import uuid
+from datetime import datetime, timedelta
+
+# Configurar backend de matplotlib para evitar problemas con tkinter
+plt.switch_backend('Agg')
+
+app.secret_key = 'clave_super_secreta'  # Necesario para la sesión
+
+indices_sinteticos = {
+    "1": "BOOM1000",
+    "2": "BOOM500",
+    "3": "BOOM300N",
+    "4": "CRASH1000",
+    "5": "CRASH500",
+    "6": "CRASH300N",
+}
+
+# Ruta para el módulo de scripts
+@app.route('/scripts')
+def scripts():
+    # Borrar la imagen previa si existe
+    if 'grafico' in session:
+        try:
+            os.remove(session['grafico'])
+        except FileNotFoundError:
+            pass
+        session.pop('grafico', None)
+
+    return render_template('scripts.html', indices_sinteticos=indices_sinteticos)
+
+# Ruta para ejecutar el script de análisis
+@app.route('/ejecutar_script', methods=['POST'])
+def ejecutar_script():
+    try:
+        data = request.get_json()
+        indice_seleccionado = data.get("indice")
+        api_token = data.get("api_token")
+
+        if not indice_seleccionado or not api_token:
+            return jsonify({"error": "No se seleccionó un índice o no se proporcionó el token de API."}), 400
+
+        # Generar un nombre de archivo único para el gráfico
+        img_filename = f"static/img/grafico_{uuid.uuid4().hex}.png"
+        session['grafico'] = img_filename
+
+        # Ejecutar la conexión en un hilo separado para evitar que se bloquee la respuesta
+        thread = threading.Thread(target=conectar_y_analizar_indice, args=(api_token, indice_seleccionado, img_filename))
+        thread.start()
+
+        return jsonify({"success": "Análisis en proceso. Puedes ver el gráfico cuando esté listo."})
+    except Exception as e:
+        print(f"Error en /ejecutar_script: {str(e)}")
+        return jsonify({"error": "Hubo un error al ejecutar el script. Verifica los datos ingresados y vuelve a intentarlo."}), 500
+
+def conectar_y_analizar_indice(api_token, indice_sintetico, img_filename):
+    try:
+        ws = websocket.WebSocketApp("wss://ws.binaryws.com/websockets/v3?app_id=64422",
+                                    on_open=lambda ws: on_open_wrapper(ws, api_token, indice_sintetico),
+                                    on_message=lambda ws, message: on_message(ws, message, img_filename, indice_sintetico),
+                                    on_error=on_error,
+                                    on_close=on_close)
+        ws.run_forever(ping_interval=30, ping_timeout=10)
+    except Exception as e:
+        print(f"Error al conectar y analizar índice: {str(e)}")
+
+def on_open_wrapper(ws, api_token, indice_sintetico):
+    try:
+        # Autenticación con el API token
+        auth_request = {
+            "authorize": api_token
+        }
+        ws.send(json.dumps(auth_request))
+    except Exception as e:
+        print(f"Error en on_open_wrapper: {str(e)}")
+
+def on_message(ws, message, img_filename, indice_sintetico):
+    try:
+        data = json.loads(message)
+        if 'error' in data:
+            print(f"Error en la API: {data['error']['message']}")
+        elif 'authorize' in data:
+            print(f"Autenticación exitosa para el usuario {data['authorize']['loginid']}")
+            # Después de la autenticación exitosa, enviar la solicitud de datos del índice
+            obtener_datos_indice_sintetico(ws, indice_sintetico)
+        elif 'candles' in data:
+            analizar_indice(data['candles'], img_filename)
+        else:
+            print("Respuesta inesperada de la API:", json.dumps(data, indent=4))
+    except Exception as e:
+        print(f"Error en on_message: {str(e)}")
+
+def on_error(ws, error):
+    print(f"Error en la conexión: {error}")
+
+def on_close(ws, close_status_code, close_msg):
+    print(f"Conexión WebSocket cerrada con código: {close_status_code} y mensaje: {close_msg}")
+
+def obtener_datos_indice_sintetico(ws, symbol):
+    try:
+        # Obtener la fecha de hace 24 horas
+        fecha_24_horas_atras = int((datetime.now() - timedelta(hours=24)).timestamp())
+
+        request_data = {
+            "ticks_history": symbol,
+            "adjust_start_time": 1,
+            "count": 24,  # 24 velas para 24 horas (una por hora)
+            "end": "latest",
+            "start": fecha_24_horas_atras,
+            "style": "candles",
+            "granularity": 3600  # Granularidad de 1 hora para que se vean 24 velas en total
+        }
+        print(f"Enviando solicitud para el índice: {symbol}")
+        ws.send(json.dumps(request_data))
+    except Exception as e:
+        print(f"Error en obtener_datos_indice_sintetico: {str(e)}")
+
+def analizar_indice(candles, img_filename):
+    try:
+        # Convertir los datos a un formato que pueda ser utilizado por mplfinance
+        ohlc_data = {
+            'Date': [pd.to_datetime(candle['epoch'], unit='s') for candle in candles],
+            'Open': [candle['open'] for candle in candles],
+            'High': [candle['high'] for candle in candles],
+            'Low': [candle['low'] for candle in candles],
+            'Close': [candle['close'] for candle in candles]
+        }
+        df = pd.DataFrame(ohlc_data)
+        df.set_index('Date', inplace=True)
+
+        # Detectar máximos y mínimos no cortados
+        prices = df['Close'].values
+        peaks, _ = find_peaks(prices, distance=2)
+        min_peaks, _ = find_peaks(-prices, distance=2)
+
+        # Crear el gráfico de velas japonesas con mplfinance
+        mc = mpf.make_marketcolors(up='g', down='r', wick={'up': 'g', 'down': 'r'}, edge={'up': 'g', 'down': 'r'})
+        s = mpf.make_mpf_style(marketcolors=mc, gridstyle='--', y_on_right=False)
+
+        fig, axlist = mpf.plot(df, type='candle', style=s, returnfig=True, figsize=(14, 8))
+
+        # Graficar los máximos y mínimos no cortados
+        ax = axlist[0]  # Obtener el eje principal de la gráfica
+        ax.scatter(df.index[peaks], df['High'].iloc[peaks], color='red', s=50, label='Máximos sin cortar', alpha=0.8)
+        ax.scatter(df.index[min_peaks], df['Low'].iloc[min_peaks], color='green', s=50, label='Mínimos sin cortar', alpha=0.8)
+
+        # Configurar leyenda
+        ax.legend()
+
+        # Guardar la imagen
+        plt.savefig(img_filename, format='png', bbox_inches='tight', dpi=200)
+        plt.close()
+    except Exception as e:
+        print(f"Error en analizar_indice: {str(e)}")
+
+@app.route('/mostrar_grafico')
+def mostrar_grafico():
+    # Devolver la imagen generada al frontend
+    if 'grafico' in session and os.path.exists(session['grafico']):
+        return send_file(session['grafico'], mimetype='image/png')
+    else:
+        return "Gráfico no disponible.", 404
+
+
+# Rutas para el gráfico en vivo
+@app.route('/inicio')
+def inicio():
+    return render_template('inicio.html', indices_sinteticos=indices_sinteticos)
+
+@app.route('/datos_grafico')
+def datos_grafico():
+    indice = request.args.get('indice')
+    temporalidad = request.args.get('temporalidad', type=int)
+
+    if not indice or not temporalidad:
+        return jsonify({"error": "No se proporcionó un índice o temporalidad."}), 400
+
+    try:
+        # Obtener datos del índice desde la API según la temporalidad
+        datos = obtener_datos_indice_vivo(indice, temporalidad)
+        if datos is None:
+            return jsonify({"error": "Error al obtener datos del índice."}), 500
+
+        tiempos = [pd.to_datetime(candle['epoch'], unit='s').strftime('%Y-%m-%d %H:%M:%S') for candle in datos]
+        open_prices = [candle['open'] for candle in datos]
+        high_prices = [candle['high'] for candle in datos]
+        low_prices = [candle['low'] for candle in datos]
+        close_prices = [candle['close'] for candle in datos]
+
+        return jsonify({"tiempos": tiempos, "open": open_prices, "high": high_prices, "low": low_prices, "close": close_prices})
+    except Exception as e:
+        print(f"Error en /datos_grafico: {str(e)}")
+        return jsonify({"error": "Hubo un error al obtener los datos del gráfico."}), 500
+
+def obtener_datos_indice_vivo(symbol, granularity):
+    try:
+        # Obtener la fecha de un mes atrás
+        fecha_mes_atras = int((datetime.now() - timedelta(days=30)).timestamp())
+
+        # Conexión WebSocket para obtener datos históricos
+        ws = websocket.create_connection("wss://ws.binaryws.com/websockets/v3?app_id=64422")
+        request_data = {
+            "ticks_history": symbol,
+            "adjust_start_time": 1,
+            "count": 5000,  # Cantidad aumentada para obtener más datos
+            "end": "latest",
+            "start": fecha_mes_atras,
+            "style": "candles",
+            "granularity": granularity * 60  # Temporalidad en segundos (M1 = 60, M5 = 300, etc.)
+        }
+        ws.send(json.dumps(request_data))
+        response = ws.recv()
+        data = json.loads(response)
+        ws.close()
+
+        if 'candles' in data:
+            return data['candles']
+        else:
+            return None
+    except Exception as e:
+        print(f"Error al obtener datos del índice: {str(e)}")
+        return None
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=True)
+

@@ -7,15 +7,16 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styleNav.css') }}">
     {% block styles %}{% endblock %}  <!-- Bloque para estilos adicionales -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> <!-- Plotly para gráficos -->
 </head>
 <body>
     <div class="sidebar">
         <h2>Trading Menu</h2>
-        <a href="{{ url_for('home') }}">Inicio</a>
+        <a href="{{ url_for('inicio') }}">Inicio</a>
         <a href="{{ url_for('register_trade') }}">Registrar Trade</a>
         <a href="{{ url_for('estadisticas') }}">Estadísticas</a>
         <a href="{{ url_for('historial') }}">Historial</a>
-        <a href="{{ url_for('home') }}">Scripts</a>
+        <a href="{{ url_for('scripts') }}">Scripts</a>
         <a href="{{ url_for('logout') }}">Logout</a>
     </div>
     <div class="content">
@@ -31,13 +32,5 @@
             </script>
         {% endif %}
 
-        <!-- Mostrar el video solo en la página de inicio -->
-        {% if show_video %}
-            <video id="bitcoinVideo" class="fullscreen-video" controls loop muted>
-                <source src="{{ url_for('static', filename='img/Trading.mp4') }}" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
-        {% endif %}
-    </div>
 </body>
 </html>

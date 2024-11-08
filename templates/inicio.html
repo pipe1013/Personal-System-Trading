@@ -1,75 +1,154 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>Inicio</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styleNav.css') }}">
-</head>
-<body>
-    <div class="content">
-        <h1>Bienvenido al Sistema de Trading</h1>
-        <canvas id="tradingChart" width="400" height="200"></canvas>
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styleInicio.css') }}">
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="script-container" id="scriptContainer">
+    <h1>Visualización de Mercados en Vivo</h1>
+
+    <!-- Selector de índices y temporalidad -->
+    <div class="selector-container" id="selectorContainer">
+        <div class="selector-group">
+            <label for="indice" class="selector-label">Selecciona un índice sintético:</label>
+            <select id="indice" class="selector-input">
+                <option value="">Selecciona un índice</option>
+                {% for key, value in indices_sinteticos.items() %}
+                    <option value="{{ value }}">{{ value }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="selector-group">
+            <label for="temporalidad" class="selector-label">Selecciona la temporalidad:</label>
+            <select id="temporalidad" class="selector-input">
+                <option value="1">M1</option>
+                <option value="5">M5</option>
+                <option value="15">M15</option>
+                <option value="30">M30</option>
+                <option value="60">H1</option>
+                <option value="240">H4</option>
+            </select>
+        </div>
+
+        <button id="verGraficoButton" class="btn-ejecutar" onclick="verGrafico()">Ver Gráfico en Vivo</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        // Configuración inicial del gráfico
-        const ctx = document.getElementById('tradingChart').getContext('2d');
-        const tradingChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: [], // Las etiquetas se actualizarán dinámicamente
-                datasets: [{
-                    label: 'Precio',
-                    borderColor: '#1abc9c',
-                    backgroundColor: 'rgba(26, 188, 156, 0.2)',
-                    data: [] // Los datos se actualizarán dinámicamente
-                }]
-            },
-            options: {
-                responsive: true,
-                animation: {
-                    duration: 0 // Desactiva la animación para que parezca en tiempo real
-                },
-                scales: {
-                    x: {
-                        display: true,
-                        title: {
-                            display: true,
-                            text: 'Tiempo'
-                        }
-                    },
-                    y: {
-                        display: true,
-                        title: {
-                            display: true,
-                            text: 'Precio'
-                        }
-                    }
-                }
-            }
-        });
+    <!-- Modal del gráfico -->
+    <div id="graficoModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="cerrarModal()">&times;</span>
+            <div id="tradingChart" style="width: 100%; height: 95vh;"></div>
+        </div>
+    </div>
+</div>
 
-        // Función para simular datos de precios en movimiento
-        function addData() {
-            const time = new Date().toLocaleTimeString(); // Hora actual
-            const price = (Math.random() * (100 - 80) + 80).toFixed(2); // Genera un precio aleatorio entre 80 y 100
+<script>
+    let intervalo;
 
-            // Añadir el tiempo y el precio al gráfico
-            tradingChart.data.labels.push(time);
-            tradingChart.data.datasets[0].data.push(price);
+    function verGrafico() {
+        const indice = document.getElementById('indice').value;
+        const temporalidad = document.getElementById('temporalidad').value;
 
-            // Limita el número de puntos en el gráfico (por ejemplo, 20 puntos)
-            if (tradingChart.data.labels.length > 20) {
-                tradingChart.data.labels.shift();
-                tradingChart.data.datasets[0].data.shift();
-            }
-
-            // Actualiza el gráfico
-            tradingChart.update();
+        if (!indice || !temporalidad) {
+            alert("Por favor, selecciona un índice y una temporalidad.");
+            return;
         }
 
-        // Llama a addData cada segundo para simular movimiento en el gráfico
-        setInterval(addData, 1000);
-    </script>
-</body>
-</html>
+        // Mostrar la ventana modal
+        const modal = document.getElementById("graficoModal");
+        modal.style.display = "block";
+
+        // Limpiar cualquier intervalo anterior
+        if (intervalo) {
+            clearInterval(intervalo);
+        }
+
+        // Inicializar el gráfico vacío
+        Plotly.newPlot('tradingChart', [{
+            x: [],
+            close: [],
+            high: [],
+            low: [],
+            open: [],
+            type: 'candlestick'
+        }], {
+            xaxis: {
+                range: ['2024-10-07', new Date().toISOString().split("T")[0]],  // Mostrar datos desde un mes atrás
+                title: 'Fecha',
+                rangeselector: {
+                    buttons: [
+                        {
+                            count: 1,
+                            label: '1d',
+                            step: 'day',
+                            stepmode: 'backward'
+                        },
+                        {
+                            count: 7,
+                            label: '1w',
+                            step: 'day',
+                            stepmode: 'backward'
+                        },
+                        {
+                            count: 1,
+                            label: '1m',
+                            step: 'month',
+                            stepmode: 'backward'
+                        },
+                        {
+                            step: 'all',
+                            label: 'Todo'
+                        }
+                    ]
+                },
+                rangeslider: { visible: true },
+                type: 'date'
+            },
+            yaxis: {
+                title: 'Precio'
+            },
+            margin: { t: 40, b: 40, l: 50, r: 50 }
+        });
+
+        // Iniciar la actualización periódica del gráfico
+        intervalo = setInterval(() => {
+            actualizarGrafico(indice, temporalidad);
+        }, 5000);
+    }
+
+    function actualizarGrafico(indice, temporalidad) {
+        fetch(`/datos_grafico?indice=${indice}&temporalidad=${temporalidad}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    console.error(data.error);
+                } else {
+                    const { tiempos, open, high, low, close } = data;
+                    Plotly.update('tradingChart', {
+                        x: [tiempos],
+                        open: [open],
+                        high: [high],
+                        low: [low],
+                        close: [close]
+                    });
+                }
+            })
+            .catch((error) => {
+                console.error('Error al actualizar el gráfico:', error);
+            });
+    }
+
+    function cerrarModal() {
+        const modal = document.getElementById("graficoModal");
+        modal.style.display = "none";
+        
+        // Limpiar el intervalo al cerrar el modal
+        if (intervalo) {
+            clearInterval(intervalo);
+        }
+    }
+</script>
+{% endblock %}

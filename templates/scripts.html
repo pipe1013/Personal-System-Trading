@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styleScripts.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="script-container">
+    <h1>Scripts de Análisis</h1>
+
+    <!-- Menú de opciones de scripts -->
+    <div class="menu-container">
+        <a href="#" class="menu-option" onclick="mostrarScript('minMaxScript')">Detectar Min y Max</a>
+    </div>
+
+    <!-- Script: Detectar Min y Max -->
+    <div class="script-content" id="minMaxScript" style="display:none;">
+        <div class="selector-container" id="inputContainer">
+            <label for="indice" class="selector-label">Selecciona un índice sintético:</label>
+            <select id="indice" class="selector-input">
+                <option value="">Selecciona un índice</option>
+                {% for key, value in indices_sinteticos.items() %}
+                    <option value="{{ value }}">{{ value }}</option>
+                {% endfor %}
+            </select>
+            <br><br>
+            <label for="api_token" class="selector-label">Ingresa tu API Token:</label>
+            <input type="text" id="api_token" class="selector-input">
+            <br><br>
+            <button id="ejecutarScriptButton" class="btn-ejecutar" onclick="ejecutarScript()">Ejecutar Script</button>
+            <div id="mensajeGenerando" style="display: none; margin-top: 10px;">Tu gráfico se está generando...</div>
+        </div>
+
+        <!-- Contenedor para el gráfico -->
+        <div id="graficoContainer" style="display:none; margin-top: 20px;">
+            <h2>Gráfico del análisis</h2>
+            <button id="verGraficoButton" class="btn-ejecutar" onclick="verGrafico()" style="display: none;">Ver Gráfico</button>
+            <img id="grafico" src="" alt="Gráfico del análisis" style="max-width: 100%; height: auto; display:none;">
+            <br><br>
+            <button id="expandirGraficoButton" class="btn-ejecutar" style="display:none;" onclick="expandirGrafico()">Ampliar Gráfico</button>
+        </div>
+
+        <!-- Modal para ver el gráfico en pantalla completa -->
+        <div id="modalGrafico" class="modal" style="display: none;">
+            <span class="close" onclick="cerrarModal()">&times;</span>
+            <img class="modal-content" id="imgAmpliada">
+        </div>
+    </div>
+</div>
+
+<script>
+    function mostrarScript(scriptId) {
+        // Ocultar todos los scripts
+        const scripts = document.querySelectorAll('.script-content');
+        scripts.forEach(script => script.style.display = 'none');
+
+        // Mostrar el script seleccionado
+        document.getElementById(scriptId).style.display = 'block';
+    }
+
+    function ejecutarScript() {
+        const indice = document.getElementById('indice').value;
+        const apiToken = document.getElementById('api_token').value;
+
+        if (!indice || !apiToken) {
+            alert("Por favor, selecciona un índice y proporciona el token de API.");
+            return;
+        }
+
+        // Mostrar mensaje de "generando"
+        const mensajeGenerando = document.getElementById('mensajeGenerando');
+        mensajeGenerando.style.display = 'block';
+
+        // Hacer fetch al endpoint para ejecutar el script
+        fetch('/ejecutar_script', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ indice: indice, api_token: apiToken })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                alert(data.error);
+            } else {
+                // Ocultar el mensaje de "generando" después de 3 segundos y mostrar el botón para ver el gráfico
+                setTimeout(() => {
+                    mensajeGenerando.style.display = 'none';
+                    document.getElementById('inputContainer').style.display = 'none';
+                    document.getElementById('graficoContainer').style.display = 'block';
+                    document.getElementById('verGraficoButton').style.display = 'block';
+                }, 3000);
+            }
+        })
+        .catch((error) => {
+            console.error('Error al ejecutar el script:', error);
+            alert("Hubo un error al ejecutar el script. Por favor, inténtalo de nuevo.");
+        });
+    }
+
+    function verGrafico() {
+        fetch('/mostrar_grafico')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error("Hubo un problema al obtener el gráfico.");
+            }
+            return response.blob();
+        })
+        .then(blob => {
+            if (blob) {
+                const url = URL.createObjectURL(blob);
+                const grafico = document.getElementById('grafico');
+                grafico.src = url;
+                grafico.style.display = 'block';
+                document.getElementById('expandirGraficoButton').style.display = 'block';
+            }
+        })
+        .catch((error) => {
+            console.error('Error al mostrar el gráfico:', error);
+            alert("Hubo un error al mostrar el gráfico. Por favor, inténtalo de nuevo.");
+        });
+    }
+
+    function expandirGrafico() {
+        const modal = document.getElementById("modalGrafico");
+        const imgAmpliada = document.getElementById("imgAmpliada");
+        const grafico = document.getElementById("grafico");
+
+        imgAmpliada.src = grafico.src;
+        modal.style.display = "block";
+    }
+
+    function cerrarModal() {
+        const modal = document.getElementById("modalGrafico");
+        modal.style.display = "none";
+    }
+
+    window.addEventListener("beforeunload", function() {
+        fetch('/eliminar_grafico', { method: 'POST' });
+    });
+</script>
+{% endblock %}

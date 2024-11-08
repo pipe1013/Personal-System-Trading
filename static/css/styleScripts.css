@@ -1,0 +1,112 @@
+body {
+    font-family: Arial, sans-serif;
+}
+
+.script-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    text-align: center;
+    color: #333;
+}
+
+.menu-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.menu-option {
+    background-color: #e0e0e0;
+    color: #007bff;
+    padding: 10px 20px;
+    border-radius: 5px;
+    text-decoration: none;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.menu-option:hover {
+    background-color: #007bff;
+    color: #fff;
+}
+
+.selector-container {
+    margin: 20px 0;
+}
+
+.selector-label {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 5px;
+}
+
+.selector-input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 20px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+.btn-ejecutar {
+    background-color: #007bff;
+    color: #fff;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.btn-ejecutar:hover {
+    background-color: #0056b3;
+}
+
+#modalGrafico {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.modal-content {
+    margin: 15% auto;
+    display: block;
+    max-width: 90%;
+}
+
+.close {
+    position: absolute;
+    top: 20px;
+    right: 35px;
+    color: #fff;
+    font-size: 40px;
+    font-weight: bold;
+    transition: 0.3s;
+}
+
+.close:hover,
+.close:focus {
+    color: #bbb;
+    text-decoration: none;
+    cursor: pointer;
+}
+#mensajeGenerando {
+    display: none;
+    text-align: center;
+    font-size: 1.2em;
+    color: #333;
+    margin-top: 20px;
+}
+
