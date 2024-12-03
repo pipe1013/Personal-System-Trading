@@ -1,0 +1,119 @@
+.control-habitos-container {
+    width: 90%;
+    max-width: 1000px; /* Ajustar el ancho máximo para aprovechar mejor la pantalla */
+    margin: 40px auto;
+    text-align: center;
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Selector de Mes */
+.seleccionar-mes {
+    margin-bottom: 20px;
+    font-size: 1.2em;
+}
+
+.seleccionar-mes select {
+    padding: 10px;
+    font-size: 1em;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.seleccionar-mes select:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 10px rgba(0, 123, 255, 0.25);
+}
+
+/* Botones */
+.btn-ver-habitos, .btn-ver-estadisticas {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, box-shadow 0.3s;
+    margin: 10px;
+}
+
+.btn-ver-habitos:hover, .btn-ver-estadisticas:hover {
+    background-color: #0056b3;
+    box-shadow: 0 4px 12px rgba(0, 86, 179, 0.3);
+}
+
+/* Sección de Hábitos */
+.habito {
+    margin-bottom: 30px; /* Reducir el margen inferior para hacer más compacto */
+    padding: 15px;
+    border-radius: 10px;
+    background-color: #ffffff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+}
+
+.habito h3 {
+    font-size: 1.6em;
+    margin-bottom: 10px; /* Reducir el espacio entre el título y los días */
+    color: #333;
+}
+
+/* Días */
+.dias {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px; /* Reducir el espacio entre los días */
+}
+
+.dia {
+    width: 35px; /* Reducir tamaño para evitar que se salga de la pantalla */
+    height: 35px;
+    line-height: 35px;
+    text-align: center;
+    border-radius: 50%;
+    background-color: #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    font-weight: bold;
+    color: #555;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.dia.activo {
+    background-color: #007bff;
+    color: white;
+    box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
+    transform: scale(1.1);
+}
+
+.dia:hover {
+    background-color: #d0d0d0;
+    transform: scale(1.05);
+}
+
+/* Mejorando la Responsividad */
+@media (max-width: 768px) {
+    .control-habitos-container {
+        width: 95%;
+        padding: 15px;
+    }
+
+    .dias {
+        gap: 5px; /* Reducir el espacio entre días en pantallas pequeñas */
+    }
+
+    .dia {
+        width: 30px;
+        height: 30px;
+        line-height: 30px;
+    }
+
+    .habito h3 {
+        font-size: 1.4em;
+    }
+}

@@ -26,6 +26,7 @@
         </select>
     </div>
     <button id="ejecutarButton" class="btn-ejecutar">Ejecutar Estrategias</button>
+    <button id="verLogButton" class="btn-historial">Ver Historial</button>
 
     <!-- Mostrar loading spinner mientras se realiza el análisis -->
     <div id="loading" class="loading-spinner" style="display: none;">
@@ -36,34 +37,58 @@
     <div id="oportunidadesContainer" class="oportunidades-container" style="display: none;">
         <!-- Aquí se mostrarán las oportunidades una vez que se complete el análisis -->
     </div>
+
+    <!-- Ventana Modal para el Log -->
+    <div id="logsModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Historial de Análisis</h2>
+            <table class="table-logs">
+                <thead>
+                    <tr>
+                        <th>Activo</th>
+                        <th>Hora</th>
+                        <th>Mensaje</th>
+                    </tr>
+                </thead>
+                <tbody id="logsTableBody">
+                    <!-- Aquí se mostrarán los registros de análisis -->
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     $(document).ready(function() {
+        // Ejecutar estrategias
         $("#ejecutarButton").click(function() {
-            // Mostrar mensaje de carga
             $("#loading").show();
             $("#oportunidadesContainer").hide();
             $("#oportunidadesContainer").empty();
+            $("#logsContainer").hide();
 
-            // Obtener el índice y la temporalidad seleccionados
             let indiceSeleccionado = $("#indice").val();
             let temporalidadSeleccionada = $("#temporalidad").val();
 
             $.post("/ejecutar_estrategias", {indice: indiceSeleccionado, temporalidad: temporalidadSeleccionada}, function(data) {
-                // Dar un tiempo de espera simulado para la ejecución del análisis
                 setTimeout(function() {
                     $.get("/resultado_estrategias", function(response) {
-                        // Ocultar mensaje de carga y mostrar contenedor de oportunidades
                         $("#loading").hide();
                         $("#oportunidadesContainer").show();
 
-                        // Si hay oportunidades, mostrarlas. Si no, mostrar mensaje de "No se encontraron oportunidades"
                         if (response.resultados.length > 0) {
                             response.resultados.forEach(function(oportunidad) {
                                 if (oportunidad.status && oportunidad.status === "No se encontró oportunidad") {
-                                    $("#oportunidadesContainer").append(`<div class="oportunidad"><h2>${oportunidad.strategy_name}</h2><p>No se encontró oportunidad.</p></div>`);
+                                    $("#oportunidadesContainer").append(`
+                                        <div class="oportunidad">
+                                            <h2>${oportunidad.strategy_name}</h2>
+                                            <p>No se encontró oportunidad.</p>
+                                            <p><strong>Razón:</strong> ${oportunidad.reason}</p>
+                                            <p><strong>Próxima revisión estimada:</strong> ${oportunidad.estimated_time}</p>
+                                        </div>
+                                    `);
                                 } else {
                                     $("#oportunidadesContainer").append(`
                                         <div class="oportunidad">
@@ -84,6 +109,41 @@
                     });
                 }, 5000);
             });
+        });
+
+        // Ver logs de análisis
+        $("#verLogButton").click(function() {
+            $("#logsTableBody").empty();
+
+            $.get("/logs_estrategias", function(response) {
+                if (response.logs.length > 0) {
+                    response.logs.forEach(function(log) {
+                        $("#logsTableBody").append(`
+                            <tr>
+                                <td>${log.asset}</td>
+                                <td>${log.timestamp}</td>
+                                <td>${log.message}</td>
+                            </tr>
+                        `);
+                    });
+                } else {
+                    $("#logsTableBody").html("<tr><td colspan='3'>No hay registros de análisis disponibles.</td></tr>");
+                }
+            });
+
+            // Mostrar el modal
+            $("#logsModal").show();
+        });
+
+        // Cerrar ventana modal
+        $(".close").click(function() {
+            $("#logsModal").hide();
+        });
+
+        $(window).click(function(event) {
+            if (event.target == $("#logsModal")[0]) {
+                $("#logsModal").hide();
+            }
         });
     });
 </script>

@@ -1,4 +1,3 @@
-# init_db.py
 import sqlite3
 from config import DB_PATH
 
@@ -45,6 +44,19 @@ cursor.execute('''
         name TEXT NOT NULL,
         initial_balance REAL,
         account_type TEXT CHECK(account_type IN ('Demo', 'Real')),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+''')
+
+# Crea la tabla habitos
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS habitos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        mes TEXT NOT NULL,
+        habito TEXT NOT NULL,
+        dia INTEGER NOT NULL,
+        cumplido BOOLEAN NOT NULL DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users(id)
     )
 ''')

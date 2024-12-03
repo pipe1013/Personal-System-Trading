@@ -21,14 +21,12 @@
         </select>
         <button id="filterButton" class="btn-filtrar" onclick="loadTradeHistory()">Filtrar</button>
         <button id="deleteNotebookButton" class="btn-eliminar-cuaderno ml-3" style="display:none;" onclick="confirmDeleteNotebook()">Eliminar Cuaderno</button>
-        
+
         <!-- Ícono de Excel -->
         <a id="downloadHistoryButton" style="display:none;" onclick="downloadTradeHistory()">
             <img src="{{ url_for('static', filename='img/excel.png') }}" alt="Descargar Excel" class="excel-icon ml-3">
         </a>
     </div>
-    
-    
 
     <!-- Contenedor para los registros de trades -->
     <div class="trade-table-container">
@@ -47,6 +45,7 @@
                     <th>¿Realizaste la rutina de activación?</th>
                     <th>Ganancia / Pérdida</th>
                     <th>Imagen de Entrada</th>
+                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody id="tradeHistoryContainer">
@@ -117,6 +116,9 @@
                     <td>
                         ${imageUrl ? `<a href="${imageUrl}" class="view-image-button" target="_blank">Ver Imagen</a>` : 'N/A'}
                     </td>
+                    <td>
+                        <button class="btn-eliminar" onclick="confirmDeleteTrade(${trade.trade_id})">Eliminar</button>
+                    </td>
                 </tr>
             `;
         });
@@ -134,23 +136,11 @@
         });
     }
 
-    // Función para descargar el historial en formato Excel
-    function downloadTradeHistory() {
-        const notebookId = document.getElementById('notebook_filter').value;
-        if (!notebookId) {
-            alert("Por favor, selecciona un cuaderno para descargar el historial.");
-            return;
-        }
-        window.location.href = `/descargar_historial?notebook_id=${notebookId}`;
-    }
-
-    // Función para confirmar la eliminación del cuaderno con SweetAlert2
-    function confirmDeleteNotebook() {
-        const notebookId = document.getElementById('notebook_filter').value;
-
+    // Confirmar la eliminación del trade con SweetAlert2
+    function confirmDeleteTrade(tradeId) {
         Swal.fire({
             title: '¿Estás seguro?',
-            text: "Esta acción eliminará el cuaderno y todos sus registros asociados.",
+            text: "Esta acción eliminará el trade de forma permanente.",
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
@@ -159,12 +149,12 @@
             cancelButtonText: 'Cancelar'
         }).then((result) => {
             if (result.isConfirmed) {
-                fetch('/eliminar_cuaderno', {
+                fetch('/eliminar_trade', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded'
                     },
-                    body: `notebook_id=${notebookId}`
+                    body: `trade_id=${tradeId}`
                 })
                 .then(response => response.json())
                 .then(data => {
@@ -176,8 +166,8 @@
                     }
                 })
                 .catch(error => {
-                    console.error("Error al eliminar el cuaderno:", error);
-                    Swal.fire('Error', 'Hubo un error al eliminar el cuaderno. Por favor, inténtalo de nuevo.', 'error');
+                    console.error("Error al eliminar el trade:", error);
+                    Swal.fire('Error', 'Hubo un error al eliminar el trade. Por favor, inténtalo de nuevo.', 'error');
                 });
             }
         });

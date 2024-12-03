@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styleControlHabitos.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="control-habitos-container">
+    <h1>Control de Hábitos</h1>
+    <div class="seleccionar-mes">
+        <label for="mes">Selecciona el mes:</label>
+        <select id="mes" name="mes">
+            {% for key, value in meses.items() %}
+                <option value="{{ key }}">{{ value }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <button id="verHabitosButton" class="btn-ver-habitos">Ver Hábitos</button>
+    <button id="verEstadisticasButton" class="btn-ver-estadisticas">Ver Estadísticas</button>
+
+    <!-- Mostrar control de hábitos -->
+    <div id="controlHabitosContainer" class="control-habitos-container" style="display: none;">
+        {% for habito in habitos %}
+        <div class="habito">
+            <h3>{{ habito }}</h3>
+            <div class="dias">
+                {% for dia in range(1, 32) %}
+                <span class="dia" data-habito="{{ habito }}" data-dia="{{ dia }}">{{ dia }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function() {
+        // Ver control de hábitos
+        $("#verHabitosButton").click(function() {
+            let mesSeleccionado = $("#mes").val();
+
+            // Ocultar el selector de meses
+            $(".seleccionar-mes, #verHabitosButton, #verEstadisticasButton").hide();
+
+            // Mostrar los hábitos y obtener los datos del mes seleccionado
+            $.get(`/habitos/${mesSeleccionado}`, function(data) {
+                $("#controlHabitosContainer").show();
+                $("#controlHabitosContainer .dia").removeClass('activo');
+                data.habitos.forEach(habito => {
+                    habito.dias.forEach(dia => {
+                        if (dia.cumplido) {
+                            $(`#controlHabitosContainer .dia[data-habito="${habito.nombre}"][data-dia="${dia.dia}"]`).addClass('activo');
+                        }
+                    });
+                });
+            });
+        });
+
+        // Marcar día como completado
+        $("#controlHabitosContainer").on("click", ".dia", function() {
+            let habito = $(this).data("habito");
+            let dia = $(this).data("dia");
+            let mesSeleccionado = $("#mes").val();
+
+            $.ajax({
+                url: `/habitos/${mesSeleccionado}/actualizar`,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({"habito": habito, "dia": dia}),
+                success: function(response) {
+                    $(this).toggleClass('activo');
+                }.bind(this)
+            });
+        });
+
+        // Ver estadísticas de los hábitos
+        $("#verEstadisticasButton").click(function() {
+            let mesSeleccionado = $("#mes").val();
+            window.location.href = `/estadisticas_habitos/${mesSeleccionado}`;
+        });
+    });
+</script>
+{% endblock %}

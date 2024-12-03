@@ -162,8 +162,38 @@
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
 }
 
-.ml-3 {
-    margin-left: 10px;
+/* Estilo de los botones Modificar y Eliminar */
+.btn-modificar,
+.btn-eliminar {
+    padding: 5px 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Estilo del botón Modificar */
+.btn-modificar {
+    background-color: #ffc107;
+    color: #fff;
+}
+
+.btn-modificar:hover {
+    background-color: #e0a800;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Estilo del botón Eliminar */
+.btn-eliminar {
+    background-color: #dc3545;
+    color: #fff;
+    margin-left: 5px;
+}
+
+.btn-eliminar:hover {
+    background-color: #c82333;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
 }
 
 /* Estilo de la tabla responsive */

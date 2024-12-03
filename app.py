@@ -104,6 +104,7 @@ def create_notebook():
 
     return jsonify({"id": notebook_id, "name": name, "initial_balance": initial_balance, "account_type": account_type})
 
+
 @app.route('/register_trade', methods=['GET', 'POST'])
 def register_trade():
     if 'user_id' not in session:
@@ -153,6 +154,14 @@ def register_trade():
     connection.close()
 
     return render_template('register_trade.html', notebooks=notebooks)
+
+    # Obtener cuadernos para el selector
+    cursor.execute('SELECT * FROM notebooks WHERE user_id = ?', (session['user_id'],))
+    notebooks = cursor.fetchall()
+    connection.close()
+
+    return render_template('register_trade.html', notebooks=notebooks)
+
 
 @app.route('/estadisticas')
 def estadisticas():
@@ -360,6 +369,14 @@ def cargar_datos_estadisticas():
     
     return jsonify(data)
 
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, send_from_directory
+import json
+import websocket
+import pandas as pd
+import datetime
+
+
+# Historial de cuadernos y trades
 @app.route('/historial')
 def historial():
     connection = get_db_connection()
@@ -371,8 +388,6 @@ def historial():
     connection.close()
 
     return render_template('historial.html', notebooks=notebooks)
-
-from flask import send_from_directory
 
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
@@ -422,6 +437,7 @@ def cargar_historial():
         # Generar la URL manualmente
         image_url = f"/static/uploads/{trade['entry_image_path']}" if trade["entry_image_path"] else None
         trade_list.append({
+            "trade_id": trade["id"],
             "notebook_name": trade["notebook_name"],
             "asset": trade["asset"],
             "lot_size": trade["lot_size"],
@@ -439,6 +455,53 @@ def cargar_historial():
     connection.close()
 
     return jsonify({"trades": trade_list})
+
+@app.route('/eliminar_trade', methods=['POST'])
+def eliminar_trade():
+    trade_id = request.form.get('trade_id')
+    connection = get_db_connection()
+    cursor = connection.cursor()
+    cursor.execute("DELETE FROM trades WHERE id = ? AND user_id = ?", (trade_id, session['user_id']))
+    connection.commit()
+    connection.close()
+    return jsonify({"success": "El trade ha sido eliminado con éxito."})
+
+@app.route('/modificar_trade/<int:trade_id>', methods=['GET', 'POST'])
+def modificar_trade(trade_id):
+    connection = get_db_connection()
+    cursor = connection.cursor()
+
+    if request.method == 'POST':
+        # Obtener los nuevos datos del formulario
+        updated_data = {
+            "asset": request.form.get("asset"),
+            "lot_size": request.form.get("lot_size"),
+            "entry_point": request.form.get("entry_point"),
+            "stop_loss": request.form.get("stop_loss"),
+            "take_profit": request.form.get("take_profit"),
+            "result": request.form.get("result"),
+            "emotion": request.form.get("emotion"),
+            "activation_routine": request.form.get("activation_routine")
+        }
+        
+        # Actualizar el trade en la base de datos
+        cursor.execute("""
+            UPDATE trades
+            SET asset = ?, lot_size = ?, entry_point = ?, stop_loss = ?, take_profit = ?, result = ?, emotion = ?, activation_routine = ?
+            WHERE id = ? AND user_id = ?
+        """, (*updated_data.values(), trade_id, session['user_id']))
+        connection.commit()
+        connection.close()
+        return redirect(url_for('historial'))
+
+    # Si es GET, obtener los datos actuales del trade
+    cursor.execute("SELECT * FROM trades WHERE id = ? AND user_id = ?", (trade_id, session['user_id']))
+    trade = cursor.fetchone()
+    connection.close()
+
+    return render_template('modificar_trade.html', trade=trade)
+
+
 
 from flask import send_file
 import pandas as pd
@@ -1033,8 +1096,6 @@ import websocket
 import pandas as pd
 import datetime
 
-
-
 indices_sinteticos = {
     "1": "BOOM1000",
     "2": "BOOM500",
@@ -1044,7 +1105,6 @@ indices_sinteticos = {
     "6": "CRASH300N",
 }
 
-# Rutas para el módulo de estrategias
 @app.route('/estrategias', methods=['GET'])
 def estrategias():
     temporalidades = [
@@ -1069,40 +1129,19 @@ def ejecutar_estrategias():
 
         resultados = []
 
-        # Ejecutar Cruce de Medias Móviles
-        resultado_ma = check_moving_average_strategy(activo, temporalidad)
-        if resultado_ma:
-            resultados.append(resultado_ma)
+        # Ejecutar Estrategia de Caza de Spikes
+        resultado_spike, razon, tiempo_estimado = check_spike_hunting_strategy(activo, temporalidad)
+        if resultado_spike:
+            resultados.append(resultado_spike)
         else:
-            resultados.append({"strategy_name": "Cruce de Medias Móviles", "asset": activo, "status": "No se encontró oportunidad"})
-
-        # Ejecutar Estrategia RSI
-        resultado_rsi = check_rsi_strategy(activo, temporalidad)
-        if resultado_rsi:
-            resultados.append(resultado_rsi)
-        else:
-            resultados.append({"strategy_name": "Análisis RSI", "asset": activo, "status": "No se encontró oportunidad"})
-
-        # Ejecutar Estrategia MACD
-        resultado_macd = check_macd_strategy(activo, temporalidad)
-        if resultado_macd:
-            resultados.append(resultado_macd)
-        else:
-            resultados.append({"strategy_name": "Cruce MACD", "asset": activo, "status": "No se encontró oportunidad"})
-
-        # Ejecutar Estrategia Bollinger Bands
-        resultado_bollinger = check_bollinger_bands_strategy(activo, temporalidad)
-        if resultado_bollinger:
-            resultados.append(resultado_bollinger)
-        else:
-            resultados.append({"strategy_name": "Bollinger Bands", "asset": activo, "status": "No se encontró oportunidad"})
-
-        # Ejecutar Estrategia de Soporte y Resistencia
-        resultado_sr = check_support_resistance_breakout_strategy(activo, temporalidad)
-        if resultado_sr:
-            resultados.append(resultado_sr)
-        else:
-            resultados.append({"strategy_name": "Ruptura de Resistencia", "asset": activo, "status": "No se encontró oportunidad"})
+            resultados.append({
+                "strategy_name": "Caza de Spikes", 
+                "asset": activo, 
+                "status": "No se encontró oportunidad",
+                "reason": razon,
+                "estimated_time": tiempo_estimado
+            })
+        print(f"Resultado Caza de Spikes: {resultado_spike if resultado_spike else razon}")
 
         # Guardar los resultados en una variable global para obtenerlos luego
         app.config['ULTIMAS_OPORTUNIDADES'] = resultados
@@ -1110,12 +1149,18 @@ def ejecutar_estrategias():
         return jsonify({"message": "Las estrategias se están ejecutando. Verifica los resultados en unos segundos."})
 
     except Exception as e:
+        print(f"Error al ejecutar las estrategias: {str(e)}")
         return jsonify({"error": f"Hubo un error al ejecutar las estrategias: {str(e)}"}), 500
 
 @app.route('/resultado_estrategias', methods=['GET'])
 def resultado_estrategias():
     resultados = app.config.get('ULTIMAS_OPORTUNIDADES', [])
     return jsonify({"resultados": resultados})
+
+@app.route('/logs_estrategias', methods=['GET'])
+def logs_estrategias():
+    logs = app.config.get('LOGS_ESTRATEGIAS', [])
+    return jsonify({"logs": logs})
 
 def obtener_datos_indice_vivo(symbol, granularity):
     try:
@@ -1146,136 +1191,214 @@ def obtener_datos_indice_vivo(symbol, granularity):
         print(f"Error al obtener datos del índice: {str(e)}")
         return pd.DataFrame()
 
-# Estrategia de Cruce de Medias Móviles
-def check_moving_average_strategy(asset, temporalidad):
-    df = obtener_datos_indice_vivo(asset, temporalidad)  # Utilizar la temporalidad seleccionada
-    if df.empty:
-        return None
-
-    # Calcular medias móviles
-    df['MA_5'] = df['close'].rolling(window=5).mean()
-    df['MA_20'] = df['close'].rolling(window=20).mean()
-
-    print(f"[{asset}] MA_5: {df['MA_5'].iloc[-2]}, MA_20: {df['MA_20'].iloc[-2]}")  # Imprimir valores para verificar
-
-    # Condición de cruce
-    if df['MA_5'].iloc[-2] < df['MA_20'].iloc[-2] and df['MA_5'].iloc[-1] > df['MA_20'].iloc[-1]:
-        return {
-            "strategy_name": "Cruce de Medias Móviles",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['high'].max(),
-            "win_rate": 85,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
-
-# Estrategia de Índice de Fuerza Relativa (RSI)
-def check_rsi_strategy(asset, temporalidad):
+# Estrategia de Caza de Spikes
+def check_spike_hunting_strategy(asset, temporalidad):
     df = obtener_datos_indice_vivo(asset, temporalidad)
     if df.empty:
-        return None
+        log_estrategia("Caza de Spikes", asset, "Datos insuficientes para el análisis")
+        return None, "Datos insuficientes para el análisis", "Próxima revisión en 15 minutos"
 
+    # Calcular Soportes y Resistencias
+    soporte = df['low'].rolling(window=20).min().iloc[-1]
+    resistencia = df['high'].rolling(window=20).max().iloc[-1]
+
+    # Calcular Retrocesos de Fibonacci
+    max_price = df['high'].max()
+    min_price = df['low'].min()
+    df['fibonacci_38'] = min_price + (max_price - min_price) * 0.382
+    df['fibonacci_61'] = min_price + (max_price - min_price) * 0.618
+
+    # Calcular RSI
     delta = df['close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
     df['RSI'] = 100 - (100 / (1 + rs))
 
-    if df['RSI'].iloc[-1] < 30:
-        return {
-            "strategy_name": "Análisis RSI - Sobrevendido",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['high'].max(),
-            "win_rate": 75,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    elif df['RSI'].iloc[-1] > 70:
-        return {
-            "strategy_name": "Análisis RSI - Sobrecomprado",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['high'].max(),
-            "win_rate": 70,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
+    # Calcular EMA de 200
+    df['EMA_200'] = df['close'].ewm(span=200, adjust=False).mean()
 
-# Estrategia de MACD
-def check_macd_strategy(asset, temporalidad):
-    df = obtener_datos_indice_vivo(asset, temporalidad)
-    if df.empty:
+    # Log de detalles del análisis
+    log_estrategia("Caza de Spikes", asset, f"Soporte: {soporte}, Resistencia: {resistencia}, RSI: {df['RSI'].iloc[-1]}, EMA_200: {df['EMA_200'].iloc[-1]}, Precio actual: {df['close'].iloc[-1]}")
+
+    # Condiciones de entrada
+    entry_point = df['close'].iloc[-1]
+    if "CRASH" in asset:
+        if (entry_point >= resistencia or entry_point >= df['fibonacci_61'].iloc[-1]) and df['RSI'].iloc[-1] > 75 and entry_point < df['EMA_200'].iloc[-1]:
+            log_estrategia("Caza de Spikes", asset, "Condiciones cumplidas para entrada en venta")
+            return calcular_puntos_entrada("Caza de Spikes - Crash", asset, df), None, None
+        else:
+            razon = "No se cumplen las condiciones de resistencia, RSI o EMA para una entrada en venta"
+            tiempo_estimado = calcular_tiempo_estimado(temporalidad)
+            log_estrategia("Caza de Spikes", asset, razon)
+            return None, razon, tiempo_estimado
+    elif "BOOM" in asset:
+        if (entry_point <= soporte or entry_point <= df['fibonacci_38'].iloc[-1]) and df['RSI'].iloc[-1] < 25 and entry_point > df['EMA_200'].iloc[-1]:
+            log_estrategia("Caza de Spikes", asset, "Condiciones cumplidas para entrada en compra")
+            return calcular_puntos_entrada("Caza de Spikes - Boom", asset, df), None, None
+        else:
+            razon = "No se cumplen las condiciones de soporte, RSI o EMA para una entrada en compra"
+            tiempo_estimado = calcular_tiempo_estimado(temporalidad)
+            log_estrategia("Caza de Spikes", asset, razon)
+            return None, razon, tiempo_estimado
+
+    log_estrategia("Caza de Spikes", asset, "Condiciones de activo no reconocidas")
+    return None, "Condiciones de activo no reconocidas", "Próxima revisión en 15 minutos"
+
+# Función auxiliar para calcular TP y SL de acuerdo al tipo de activo
+def calcular_puntos_entrada(strategy_name, asset, df, soporte=None, resistencia=None):
+    entry_point = df['close'].iloc[-1]
+
+    # Ajustar la relación riesgo-beneficio y gestionar el tamaño de posición
+    if "CRASH" in asset:
+        stop_loss = entry_point + 15
+        take_profit = entry_point - 20
+    elif "BOOM" in asset:
+        stop_loss = entry_point - 15
+        take_profit = entry_point + 20
+    else:
         return None
 
-    df['EMA_12'] = df['close'].ewm(span=12, adjust=False).mean()
-    df['EMA_26'] = df['close'].ewm(span=26, adjust=False).mean()
-    df['MACD'] = df['EMA_12'] - df['EMA_26']
-    df['Signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
-
-    if df['MACD'].iloc[-2] < df['Signal'].iloc[-2] and df['MACD'].iloc[-1] > df['Signal'].iloc[-1]:
-        return {
-            "strategy_name": "Cruce MACD",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['high'].max(),
-            "win_rate": 80,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
-
-# Estrategia de Bollinger Bands
-def check_bollinger_bands_strategy(asset, temporalidad):
-    df = obtener_datos_indice_vivo(asset, temporalidad)
-    if df.empty:
+    # Filtrar operaciones donde la relación TP/SL no es al menos de 1.5:1
+    if abs(take_profit - entry_point) / abs(entry_point - stop_loss) < 1.5:
+        log_estrategia(strategy_name, asset, "La relación TP/SL no es favorable (menor a 1.5:1)")
         return None
 
-    df['SMA_20'] = df['close'].rolling(window=20).mean()
-    df['stddev'] = df['close'].rolling(window=20).std()
-    df['Upper'] = df['SMA_20'] + (df['stddev'] * 2)
-    df['Lower'] = df['SMA_20'] - (df['stddev'] * 2)
+    return {
+        "strategy_name": strategy_name,
+        "asset": asset,
+        "entry_point": entry_point,
+        "stop_loss": stop_loss,
+        "take_profit": take_profit,
+        "win_rate": 75,
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
 
-    if df['close'].iloc[-1] < df['Lower'].iloc[-1]:
-        return {
-            "strategy_name": "Bollinger Bands - Ruptura Inferior",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": df['low'].min(),
-            "take_profit": df['Upper'].iloc[-1],
-            "win_rate": 70,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
+# Función auxiliar para calcular el tiempo estimado para la próxima oportunidad
+def calcular_tiempo_estimado(temporalidad):
+    ahora = datetime.datetime.now()
+    minutos_extra = temporalidad * 2
+    proxima_revision = ahora + datetime.timedelta(minutes=minutos_extra)
+    return proxima_revision.strftime("%H:%M")
 
-# Estrategia de Soporte y Resistencia
-def check_support_resistance_breakout_strategy(asset, temporalidad):
-    df = obtener_datos_indice_vivo(asset, temporalidad)
-    if df.empty:
-        return None
+# Función auxiliar para registrar logs de las estrategias
+def log_estrategia(strategy_name, asset, message):
+    log_message = {
+        "strategy_name": strategy_name,
+        "asset": asset,
+        "message": message,
+        "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    if 'LOGS_ESTRATEGIAS' not in app.config:
+        app.config['LOGS_ESTRATEGIAS'] = []
+    app.config['LOGS_ESTRATEGIAS'].append(log_message)
 
-    soporte = df['low'].rolling(window=20).min().iloc[-1]
-    resistencia = df['high'].rolling(window=20).max().iloc[-1]
+from flask import Flask, render_template, jsonify, request, redirect, url_for
+import sqlite3
+from config import DB_PATH
 
-    if df['close'].iloc[-1] > resistencia:
-        return {
-            "strategy_name": "Ruptura de Resistencia",
-            "asset": asset,
-            "entry_point": df['close'].iloc[-1],
-            "stop_loss": soporte,
-            "take_profit": resistencia + (resistencia - soporte),
-            "win_rate": 65,
-            "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        }
-    return None
+# Definición de meses y hábitos
+meses = {
+    "1": "Enero", "2": "Febrero", "3": "Marzo", "4": "Abril", "5": "Mayo", "6": "Junio",
+    "7": "Julio", "8": "Agosto", "9": "Septiembre", "10": "Octubre", "11": "Noviembre", "12": "Diciembre"
+}
+habitos = [
+    "Ir al GYM", "Meditar", "NDP", "Vida social", "Estado de ánimo",
+    "Relación familiar", "Lectura", "Inglés", "Trabajo", "Trading"
+]
+
+
+@app.route('/control_habitos', methods=['GET'])
+def control_habitos():
+    return render_template('control_habitos.html', meses=meses, habitos=habitos)
+
+@app.route('/habitos/<mes>', methods=['GET'])
+def obtener_habitos(mes):
+    try:
+        user_id = 1
+        connection = sqlite3.connect(DB_PATH)
+        cursor = connection.cursor()
+
+        cursor.execute('''
+            SELECT habito, dia, cumplido FROM habitos WHERE user_id = ? AND mes = ?
+        ''', (user_id, mes))
+        registros = cursor.fetchall()
+
+        habitos_data = {}
+        for habito, dia, cumplido in registros:
+            if habito not in habitos_data:
+                habitos_data[habito] = []
+            habitos_data[habito].append({"dia": dia, "cumplido": cumplido})
+
+        habitos_list = [{"nombre": habito, "dias": dias} for habito, dias in habitos_data.items()]
+
+        return jsonify({"habitos": habitos_list})
+    except Exception as e:
+        print(f"Error al obtener hábitos: {str(e)}")
+        return jsonify({"error": "Error al obtener hábitos"}), 500
+    finally:
+        connection.close()
+
+@app.route('/habitos/<mes>/actualizar', methods=['POST'])
+def actualizar_habito(mes):
+    try:
+        user_id = 1
+        data = request.get_json()
+        habito = data.get("habito")
+        dia = data.get("dia")
+
+        connection = sqlite3.connect(DB_PATH)
+        cursor = connection.cursor()
+
+        cursor.execute('''
+            SELECT id FROM habitos WHERE user_id = ? AND mes = ? AND habito = ? AND dia = ?
+        ''', (user_id, mes, habito, dia))
+        registro = cursor.fetchone()
+
+        if registro:
+            cursor.execute('''
+                UPDATE habitos SET cumplido = NOT cumplido WHERE id = ?
+            ''', (registro[0],))
+        else:
+            cursor.execute('''
+                INSERT INTO habitos (user_id, mes, habito, dia, cumplido) VALUES (?, ?, ?, ?, ?)
+            ''', (user_id, mes, habito, dia, True))
+
+        connection.commit()
+        return jsonify({"message": "Hábito actualizado correctamente"})
+    except Exception as e:
+        print(f"Error al actualizar hábito: {str(e)}")
+        return jsonify({"error": "Error al actualizar hábito"}), 500
+    finally:
+        connection.close()
+
+@app.route('/estadisticas_habitos/<mes>', methods=['GET'])
+def estadisticas_habitos(mes):
+    try:
+        user_id = 1
+        connection = sqlite3.connect(DB_PATH)
+        cursor = connection.cursor()
+
+        cursor.execute('''
+            SELECT habito, COUNT(*) as cumplidos FROM habitos WHERE user_id = ? AND mes = ? AND cumplido = 1 GROUP BY habito
+        ''', (user_id, mes))
+        registros = cursor.fetchall()
+
+        habitos_data = [{"nombre": registro[0], "cumplimiento": registro[1]} for registro in registros]
+
+        return render_template("estadisticas_habitos.html", habitos=habitos_data, mes=meses.get(mes, ""))
+    except Exception as e:
+        print(f"Error al obtener estadísticas: {str(e)}")
+        return jsonify({"error": "Error al obtener estadísticas"}), 500
+    finally:
+        connection.close()
 
 if __name__ == '__main__':
     app.run(host='127.0.0.1', port=5000, debug=True)
 
 
+
+ 
 
 
 

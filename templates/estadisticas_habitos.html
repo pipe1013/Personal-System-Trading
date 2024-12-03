@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/styleEstadisticasHabitos.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="estadisticas-container">
+    <h1>Estadísticas de Hábitos en {{ mes }}</h1>
+    <canvas id="graficoHabitos"></canvas>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const ctx = document.getElementById('graficoHabitos').getContext('2d');
+        const data = JSON.parse('{{ habitos | tojson | safe }}'); // Serializar correctamente habitos
+        const nombres = data.map(habito => habito.nombre);
+        const cumplimientos = data.map(habito => habito.cumplimiento);
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: nombres,
+                datasets: [{
+                    label: 'Cantidad de Cumplimientos',
+                    data: cumplimientos,
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}
